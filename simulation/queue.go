@@ -2,8 +2,7 @@ package simulation
 
 import "fmt"
 
-// Queue is a bounded FIFO. Its owner must serialize access; the simulation
-// coordinator owns all queues, so agents never mutate them concurrently.
+// Queue : FIFO
 type Queue struct {
 	capacity int
 	ids      []int

@@ -2,9 +2,51 @@ package simulation
 
 import "time"
 
+type StudentResult struct {
+	Student      Student
+	Status       Status
+	Area         Area
+	ArrivalTime  time.Duration
+	ExitTime     time.Duration
+	Satisfaction float32
+	TotalWait    time.Duration
+	Waiting      map[Area]time.Duration
+	Path         []Area
+	Meal         Meal
+}
+
+type StaffResult struct {
+	Staff       Staff
+	Served      int
+	BusyTime    time.Duration
+	Utilization float32
+}
+
+type Metrics struct {
+	Completed           int
+	Abandoned           int
+	Rejected            int
+	Cancelled           int
+	AverageWait         time.Duration
+	AverageWaitByArea   map[Area]time.Duration
+	AverageSatisfaction float64
+	AbandonmentRate     float64
+	MealsPerMinute      float64
+}
+
+type Report struct {
+	Duration      time.Duration
+	Students      []StudentResult
+	Staff         []StaffResult
+	Stock         []Stock
+	PeakOccupancy map[Area]int
+	Events        []Event
+	Metrics       Metrics
+}
+
 func (e *engine) report() Report {
 	report := Report{
-		Duration: e.now, Stock: e.stock, Events: e.events, PeakOccupancy: e.peaks,
+		Duration: e.now, Stock: e.stock.items, Events: e.events, PeakOccupancy: e.peaks,
 		Metrics: Metrics{AverageWaitByArea: make(map[Area]time.Duration)},
 	}
 	var totalWait time.Duration
@@ -27,14 +69,14 @@ func (e *engine) report() Report {
 		if len(result.Path) > 0 {
 			admitted++
 			totalWait += result.TotalWait
-			totalSatisfaction += result.Satisfaction
+			totalSatisfaction += float64(result.Satisfaction)
 		}
 		for _, area := range result.Path {
 			visitors[area]++
 			report.Metrics.AverageWaitByArea[area] += result.Waiting[area]
 		}
 	}
-	for _, area := range route {
+	for _, area := range ServiceRoute() {
 		if visitors[area] > 0 {
 			report.Metrics.AverageWaitByArea[area] /= time.Duration(visitors[area])
 		} else {
@@ -52,7 +94,7 @@ func (e *engine) report() Report {
 	for _, worker := range e.staff {
 		result := worker.result
 		if e.now > 0 {
-			result.Utilization = float64(result.BusyTime) / float64(e.now)
+			result.Utilization = float32(float64(result.BusyTime) / float64(e.now))
 		}
 		report.Staff = append(report.Staff, result)
 	}

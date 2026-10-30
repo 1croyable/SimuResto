@@ -1,79 +1,14 @@
-// Package simulation models a CROUS lunch service without a graphical interface.
+// Package simulation 使用 goroutine 模拟无图形界面的 CROUS 食堂服务。
 package simulation
 
 import "time"
-
-type Preference string
-
-const (
-	Vegetarian    Preference = "vegetarian"
-	MeatPreferred Preference = "meat_preferred"
-)
-
-type Course string
-
-const (
-	Starter Course = "starter"
-	Main    Course = "main"
-	Dessert Course = "dessert"
-)
-
-type Area string
-
-const (
-	Outside     Area = "outdoor_queue"
-	Inside      Area = "indoor_queue"
-	SelfService Area = "self_service"
-	MainService Area = "main_service"
-	Payment     Area = "payment"
-)
-
-var route = [...]Area{Outside, Inside, SelfService, MainService, Payment}
-
-type Status string
-
-const (
-	Scheduled Status = "scheduled"
-	Active    Status = "active"
-	Completed Status = "completed"
-	Abandoned Status = "abandoned"
-	Rejected  Status = "rejected"
-	Cancelled Status = "cancelled"
-)
-
-// Signal is an agent interaction or a change in the simulation's state.
-type Signal string
-
-const (
-	Arrived          Signal = "arrived"
-	Entered          Signal = "entered"
-	SelfServiceStart Signal = "self_service_started"
-	FoodCollected    Signal = "food_collected"
-	OrderPlaced      Signal = "order_placed"
-	MainServed       Signal = "main_served"
-	FoodUnavailable  Signal = "food_unavailable"
-	PaymentStarted   Signal = "payment_started"
-	Paid             Signal = "paid"
-	Finished         Signal = "finished"
-	LeftQueue        Signal = "left_queue"
-	QueueFull        Signal = "queue_full"
-	Stopped          Signal = "stopped"
-	Progress         Signal = "progress"
-)
-
-type Role string
-
-const (
-	Server  Role = "server"
-	Cashier Role = "cashier"
-)
 
 type Student struct {
 	ID             int
 	Preference     Preference
 	ArrivalTime    time.Duration
-	Patience       time.Duration
-	Satisfaction   float64
+	Patience       time.Duration //是否改成数值比较好？
+	Satisfaction   float32       //满分100，0-100
 	StartersWanted int
 	DessertsWanted int
 }
@@ -85,76 +20,25 @@ type Staff struct {
 }
 
 type Dish struct {
-	ID         string
-	Name       string
-	Course     Course
-	Vegetarian bool
-	Portions   int
+	ID               string
+	Name             string
+	Course           Course
+	Vegetarian       bool
+	Portions         int
+	SatisfactionGain float32 // 每领取一份增加的满意度，也决定选菜权重。
 }
 
-// Stock tracks daily preparation. Remaining + Reserved + Taken == Dish.Portions.
-// A main is reserved when ordered and taken only when the server delivers it.
+// Stock 记录每日库存，满足 Remaining + Reserved + Taken == Dish.Portions。
+// 主菜接单时预留，工作人员交付后才计入已领取份数。
 type Stock struct {
 	Dish      Dish
-	Remaining int
-	Reserved  int
-	Taken     int
+	Remaining int //还在柜台内的部分
+	Reserved  int //正在打饭
+	Taken     int //已经领取
 }
 
 type Meal struct {
 	Starters []Dish
-	Main     *Dish
+	Main     *Dish // 最多一份主菜
 	Desserts []Dish
-}
-
-type Event struct {
-	Time      time.Duration
-	Signal    Signal
-	StudentID int
-	StaffID   int
-	From      Area
-	To        Area
-	DishIDs   []string
-}
-
-type StudentResult struct {
-	Student      Student
-	Status       Status
-	Area         Area
-	ArrivalTime  time.Duration
-	ExitTime     time.Duration
-	Satisfaction float64
-	TotalWait    time.Duration
-	Waiting      map[Area]time.Duration
-	Path         []Area
-	Meal         Meal
-}
-
-type StaffResult struct {
-	Staff       Staff
-	Served      int
-	BusyTime    time.Duration
-	Utilization float64
-}
-
-type Metrics struct {
-	Completed           int
-	Abandoned           int
-	Rejected            int
-	Cancelled           int
-	AverageWait         time.Duration
-	AverageWaitByArea   map[Area]time.Duration
-	AverageSatisfaction float64
-	AbandonmentRate     float64
-	MealsPerMinute      float64
-}
-
-type Report struct {
-	Duration      time.Duration
-	Students      []StudentResult
-	Staff         []StaffResult
-	Stock         []Stock
-	PeakOccupancy map[Area]int
-	Events        []Event
-	Metrics       Metrics
 }

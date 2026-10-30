@@ -20,7 +20,7 @@ func main() {
 func run() int {
 	config := simulation.DefaultConfig()
 	count := flag.Int("students", 80, "number of students")
-	seed := flag.Int64("seed", 42, "seed for student profiles")
+	seed := flag.Int64("seed", config.Seed, "seed for student profiles and meal choices")
 	arrivalInterval := flag.Duration("arrival-interval", time.Second, "simulated time between arrivals (0 for a crowd)")
 	jsonOutput := flag.Bool("json", false, "print the complete report as JSON (durations in nanoseconds)")
 	events := flag.Bool("events", false, "print agent interactions before the summary")
@@ -40,15 +40,20 @@ func run() int {
 	flag.DurationVar(&config.SelfServiceTime, "self-time", config.SelfServiceTime, "time to collect sides")
 	flag.DurationVar(&config.MainServiceTime, "main-time", config.MainServiceTime, "time to serve a main")
 	flag.DurationVar(&config.PaymentTime, "payment-time", config.PaymentTime, "time to pay")
-	flag.IntVar(&config.Menu[0].Portions, "starters", config.Menu[0].Portions, "daily starter portions")
-	flag.IntVar(&config.Menu[1].Portions, "vegetarian-mains", config.Menu[1].Portions, "daily vegetarian main portions")
-	flag.IntVar(&config.Menu[2].Portions, "meat-mains", config.Menu[2].Portions, "daily meat main portions")
-	flag.IntVar(&config.Menu[3].Portions, "desserts", config.Menu[3].Portions, "daily dessert portions")
+	starters := flag.Int("starters", 90, "total daily starter portions")
+	vegetarianMains := flag.Int("vegetarian-mains", 40, "total daily vegetarian main portions")
+	meatMains := flag.Int("meat-mains", 60, "total daily meat main portions")
+	desserts := flag.Int("desserts", 90, "total daily dessert portions")
 	flag.Parse()
 	if flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "unexpected positional arguments; use -help for options")
 		return 2
 	}
+	config.Seed = *seed
+	setMenuPortions(config.Menu, simulation.Starter, true, *starters)
+	setMenuPortions(config.Menu, simulation.Main, true, *vegetarianMains)
+	setMenuPortions(config.Menu, simulation.Main, false, *meatMains)
+	setMenuPortions(config.Menu, simulation.Dessert, true, *desserts)
 	students, err := simulation.GenerateStudents(*count, *seed, *arrivalInterval)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -82,6 +87,27 @@ func run() int {
 		return 1
 	}
 	return 0
+}
+
+// 同类菜品平均分配总库存，余数按菜单顺序分配；不依赖菜品所在的下标。
+// 负数原样传入配置校验，避免被整除截断为零。
+func setMenuPortions(menu []simulation.Dish, course simulation.Course, vegetarian bool, total int) {
+	var indices []int
+	for i, dish := range menu {
+		if dish.Course == course && (course != simulation.Main || dish.Vegetarian == vegetarian) {
+			indices = append(indices, i)
+		}
+	}
+	for position, index := range indices {
+		if total < 0 {
+			menu[index].Portions = total
+			continue
+		}
+		menu[index].Portions = total / len(indices)
+		if position < total%len(indices) {
+			menu[index].Portions++
+		}
+	}
 }
 
 func printSummary(report simulation.Report) {
