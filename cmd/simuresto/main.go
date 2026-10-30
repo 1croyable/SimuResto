@@ -10,7 +10,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/1croyable/SimuResto/simulation"
+	"simuresto/frontend"
+	"simuresto/simulation"
 )
 
 func main() {
@@ -19,6 +20,8 @@ func main() {
 
 func run() int {
 	config := simulation.DefaultConfig()
+	gui := flag.Bool("gui", false, "open the graphical setup screen")
+	guiOptions := graphicalFlags()
 	count := flag.Int("students", 80, "number of students")
 	seed := flag.Int64("seed", config.Seed, "seed for student profiles and meal choices")
 	arrivalInterval := flag.Duration("arrival-interval", time.Second, "simulated time between arrivals (0 for a crowd)")
@@ -49,6 +52,13 @@ func run() int {
 		fmt.Fprintln(os.Stderr, "unexpected positional arguments; use -help for options")
 		return 2
 	}
+	if *gui {
+		if *jsonOutput || *events {
+			fmt.Fprintln(os.Stderr, "-json and -events are only available in command-line mode")
+			return 2
+		}
+		applyGraphicalDefaults(&config, count)
+	}
 	config.Seed = *seed
 	setMenuPortions(config.Menu, simulation.Starter, true, *starters)
 	setMenuPortions(config.Menu, simulation.Main, true, *vegetarianMains)
@@ -58,6 +68,15 @@ func run() int {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
+	}
+	if *gui {
+		guiOptions.Config, guiOptions.Students = config, students
+		guiOptions.ArrivalInterval = *arrivalInterval
+		if err := frontend.Run(guiOptions); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		return 0
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()

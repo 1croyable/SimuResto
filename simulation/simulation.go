@@ -8,54 +8,26 @@ import (
 
 var ErrTimeLimit = errors.New("simulation reached its maximum duration")
 
-// Run 为每名学生和工作人员启动一个 goroutine。Tick 表示模拟步长，
-// TickInterval 用于控制播放速度。同样的输入产生相同的报告，
-// 不受 goroutine 调度顺序影响。取消运行或达到时限时，
-// 返回部分报告、归还预留库存，并等待所有智能体退出。
+// Run 在命令行中连续推进 Session；图形前端则按自己的播放速度调用 Step。
+// 所有智能体、队列、库存与满意度规则均由同一个会话执行。
 func Run(ctx context.Context, config Config, students []Student) (Report, error) {
-	if err := config.validate(students); err != nil {
+	session, err := NewSession(config, students)
+	if err != nil {
 		return Report{}, err
 	}
-	e := newEngine(config, students)
-	defer e.closeAgents()
+	defer session.Close()
 	for {
-		if err := ctx.Err(); err != nil {
-			e.stop()
-			return e.report(), err
+		done, err := session.Step(ctx)
+		if done {
+			return session.Report(), err
 		}
-		e.moveForward()
-		e.admit()
-		if e.finished == len(e.students) {
-			return e.report(), nil
-		}
-		if e.now >= config.MaxDuration {
-			e.stop()
-			return e.report(), ErrTimeLimit
-		}
-
-		e.askStudents(allStudents)
-		e.startSelfService()
-		e.assignStaff()
-		step := min(config.Tick, config.MaxDuration-e.now)
-		e.countWaiting(step)
-		e.now += step
-		e.advanceSelfService(step)
-		e.advanceStaffService(step)
-		// 先让排队学生决定是否离队，再把新腾出的位置
-		// 分配给继续等待的学生。
-		e.askStudents(waitingStudents)
-		e.moveForward()
-		if e.finished == len(e.students) {
-			return e.report(), nil
-		}
-
-		if config.TickInterval > 0 && e.now < config.MaxDuration {
+		if config.TickInterval > 0 && session.engine.now < config.MaxDuration {
 			timer := time.NewTimer(config.TickInterval)
 			select {
 			case <-ctx.Done():
 				timer.Stop()
-				e.stop()
-				return e.report(), ctx.Err()
+				session.Close()
+				return session.Report(), ctx.Err()
 			case <-timer.C:
 			}
 		}

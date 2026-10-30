@@ -1,38 +1,58 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
+# 编译生成的程序和动态库
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+/simuresto
+/simuresto-gui
+/simuresto-perf
+/bin/
+/build/
+/dist/
 
-# Test binary, built with `go test -c`
+# 测试程序、覆盖率和性能分析文件
 *.test
-
-# Code coverage profiles and other test artifacts
 *.out
-coverage.*
-!coverage.go
 *.coverprofile
-profile.cov
+*.pprof
+/coverage.*
+!/coverage.go
+/profile.cov
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# 本地运行产生的报告和临时截图，保留 docs/images/ 中的文档配图
+/report.json
+/setup.png
+/preview.png
+/tmp/
+/temp/
+*.log
 
-# Go workspace file
+# 本地 Go 工作区和缓存
 go.work
 go.work.sum
+/.gocache/
+/.gomodcache/
 
-# env file
+# 本地环境变量，允许提交配置示例
 .env
+.env.*
+!.env.example
+!.env.sample
 
-# Editor/IDE
+# 编辑器配置和临时文件
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
 
-# macOS
+# 操作系统生成的文件
 .DS_Store
 .AppleDouble
 .LSOverride
+Thumbs.db
+Desktop.ini
+
+# 第三方依赖由 Go Modules 自动下载，不随项目提交。
+/vendor/
