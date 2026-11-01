@@ -3,9 +3,12 @@ package simulation
 
 import "time"
 
+const DefaultTemperature float32 = 1 // 默认保留原有的按评分权重抽选行为。
+
 type Student struct {
 	ID             int
 	Preference     Preference
+	Temperature    float32 // LLM temperature
 	ArrivalTime    time.Duration
 	Patience       time.Duration //是否改成数值比较好？
 	Satisfaction   float32       //满分100，0-100

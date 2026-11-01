@@ -2,15 +2,16 @@ package simulation
 
 import "time"
 
+// 选前菜，甜点
 func (e *engine) startSelfService() {
 	for _, id := range e.queues[SelfService].IDs() {
-		student := e.byID[id]
+		student := e.ID2Student[id]
 		if student.started {
 			continue
 		}
 		student.started = true
 		e.emit(SelfServiceStart, id, 0, SelfService, SelfService)
-		student.missingSides = e.collectSides(student)
+		student.missingSides = e.collectSelfServiceItems(student)
 		var dishes []string
 		for _, course := range [][]Dish{student.result.Meal.Starters, student.result.Meal.Desserts} {
 			for _, dish := range course {
@@ -24,27 +25,43 @@ func (e *engine) startSelfService() {
 	}
 }
 
-// collectSides 先按期望组合领取，再用另一类补足；只对最终缺少的份数扣分。
-func (e *engine) collectSides(student *studentState) int {
+// collectSelfServiceItems 先按期望组合领取，再用另一类补足；只对最终缺少的份数扣分。
+func (e *engine) collectSelfServiceItems(student *studentState) int {
 	profile, meal := student.result.Student, &student.result.Meal
 	wanted := min(profile.StartersWanted+profile.DessertsWanted, e.config.MaxSelfServiceItems,
 		e.config.MaxStartersPerStudent+e.config.MaxDessertsPerStudent)
 	remaining := wanted
-	take := func(target *[]Dish, choices []string, count, limit int) {
-		dishes := e.stock.takeSides(choices, min(count, limit-len(*target), remaining))
+	take := func(target *[]Dish, course Course, count, limit int) {
+		dishes := e.chooseAndTakeDishes(student, course, min(count, limit-len(*target), remaining))
 		*target = append(*target, dishes...)
 		remaining -= len(dishes)
 	}
-	take(&meal.Starters, student.plan.starterChoices, profile.StartersWanted, e.config.MaxStartersPerStudent)
-	take(&meal.Desserts, student.plan.dessertChoices, profile.DessertsWanted, e.config.MaxDessertsPerStudent)
-	take(&meal.Starters, student.plan.starterChoices, remaining, e.config.MaxStartersPerStudent)
-	take(&meal.Desserts, student.plan.dessertChoices, remaining, e.config.MaxDessertsPerStudent)
+	take(&meal.Starters, Starter, profile.StartersWanted, e.config.MaxStartersPerStudent)
+	take(&meal.Desserts, Dessert, profile.DessertsWanted, e.config.MaxDessertsPerStudent)
+	take(&meal.Starters, Starter, remaining, e.config.MaxStartersPerStudent)
+	take(&meal.Desserts, Dessert, remaining, e.config.MaxDessertsPerStudent)
 	return remaining
 }
 
-func (e *engine) advanceSelfService(step time.Duration) {
+// 每拿一份就重新读取库存、抽选并扣除，允许再次抽中尚有库存的同一道菜。
+func (e *engine) chooseAndTakeDishes(student *studentState, course Course, count int) []Dish {
+	// 当前学生完成本次领取后才释放库存锁，后续学生再读取最新库存。
+	e.stock.mu.Lock()
+	defer e.stock.mu.Unlock()
+	var dishes []Dish
+	for range count {
+		id := e.chooseDish(student, course)
+		if id == "" {
+			break
+		}
+		dishes = append(dishes, e.stock.takeSide(id))
+	}
+	return dishes
+}
+
+func (e *engine) stepSelfService(step time.Duration) {
 	for _, id := range e.queues[SelfService].IDs() {
-		student := e.byID[id]
+		student := e.ID2Student[id]
 		if student.started && !student.ready {
 			student.elapsed += step
 			if student.elapsed >= e.config.SelfServiceTime {

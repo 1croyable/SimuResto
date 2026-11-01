@@ -53,6 +53,7 @@ func (g *Game) drawSettings(screen *ebiten.Image) {
 		g.text(screen, g.label("默认主菜 : 前菜 : 甜点 = 2 : 1 : 1；两份甜点各计算一次权重。", "Default main : starter : dessert = 2 : 1 : 1; each portion counts separately."), 48, 620, 15, muted)
 		g.text(screen, g.label("前菜和甜点默认合计两份，可以选 2 + 0、1 + 1 或 0 + 2。", "Two sides by default: 2 starters, one of each, or 2 desserts."), 48, 660, 15, muted)
 		g.text(screen, g.label("主菜偏好不符先减 25 分，最低为 0；餐品总影响含缺货最多 ±50 分。", "Mismatched main: score -25, minimum 0. Total food effect including shortages: +/-50."), 48, 700, 15, muted)
+		g.text(screen, g.label("温度 0 选最高分；1 为默认；越高越随机。此处统一设置所有学生。", "Temperature: 0 picks the best, 1 is default, higher is more random. Applies to all students."), 48, 740, 13, muted)
 	}
 	if g.settingsError != "" {
 		g.rounded(screen, rectangle{48, 768, 976, 52}, 8, color.NRGBA{253, 235, 235, 255})

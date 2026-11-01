@@ -8,9 +8,10 @@ import (
 	"time"
 )
 
-func TestSessionMatchesContinuousRun(t *testing.T) {
+func TestGameMatchesContinuousRun(t *testing.T) {
 	config := DefaultConfig()
-	students, err := GenerateStudents(90, config.Seed, time.Second)
+	generator := StudentGenerator{Seed: config.Seed, ArrivalInterval: time.Second}
+	students, err := generator.Generate(90)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -18,13 +19,13 @@ func TestSessionMatchesContinuousRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, err := NewSession(config, students)
+	game, err := NewGame(config, students)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer session.Close()
+	defer game.Close()
 	for {
-		done, err := session.Step(context.Background())
+		done, err := game.Step(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -32,10 +33,10 @@ func TestSessionMatchesContinuousRun(t *testing.T) {
 			break
 		}
 	}
-	if !reflect.DeepEqual(want, session.Report()) {
+	if !reflect.DeepEqual(want, game.Report()) {
 		t.Fatal("图形前端逐步推进与命令行连续运行必须一致")
 	}
-	if !session.Snapshot().Done {
+	if !game.Snapshot().Done {
 		t.Fatal("完成后必须标记结束")
 	}
 }
@@ -43,18 +44,18 @@ func TestSessionMatchesContinuousRun(t *testing.T) {
 func TestSnapshotIsIndependentAndReadingDoesNotAdvanceTime(t *testing.T) {
 	config := DefaultConfig()
 	student := Student{ID: 1, Preference: Vegetarian, Satisfaction: 50, Patience: time.Hour, StartersWanted: 1, DessertsWanted: 1}
-	session, err := NewSession(config, []Student{student})
+	game, err := NewGame(config, []Student{student})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer session.Close()
+	defer game.Close()
 	for range 12 {
-		if _, err := session.Step(context.Background()); err != nil {
+		if _, err := game.Step(context.Background()); err != nil {
 			t.Fatal(err)
 		}
 	}
-	want := session.Snapshot()
-	changed := session.Snapshot()
+	want := game.Snapshot()
+	changed := game.Snapshot()
 	if changed.Students[0].Meal.Main == nil {
 		t.Fatal("本场景应已交付主菜")
 	}
@@ -75,36 +76,36 @@ func TestSnapshotIsIndependentAndReadingDoesNotAdvanceTime(t *testing.T) {
 			changed.Events[i].DishIDs[0] = "被外部修改"
 		}
 	}
-	if !reflect.DeepEqual(want, session.Snapshot()) {
+	if !reflect.DeepEqual(want, game.Snapshot()) {
 		t.Fatal("读取或修改快照不应推进时间或改变模拟内部状态")
 	}
 }
 
-func TestSessionCloseReturnsReservationAndIsIdempotent(t *testing.T) {
+func TestGameCloseReturnsReservationAndIsIdempotent(t *testing.T) {
 	config := DefaultConfig()
 	student := Student{ID: 1, Preference: Vegetarian, Satisfaction: 50, Patience: time.Hour}
-	session, err := NewSession(config, []Student{student})
+	game, err := NewGame(config, []Student{student})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for range 5 {
-		session.Step(context.Background())
+		game.Step(context.Background())
 	}
 	reserved := 0
-	for _, stock := range session.Snapshot().Stock {
+	for _, stock := range game.Snapshot().Stock {
 		reserved += stock.Reserved
 	}
 	if reserved != 1 {
 		t.Fatal("关闭前应有一份预留主菜")
 	}
-	session.Close()
-	session.Close()
-	for _, stock := range session.Snapshot().Stock {
+	game.Close()
+	game.Close()
+	for _, stock := range game.Snapshot().Stock {
 		if stock.Reserved != 0 || stock.Remaining+stock.Taken != stock.Dish.Portions+stock.Replenished {
 			t.Fatal("关闭窗口必须释放预留库存")
 		}
 	}
-	if done, err := session.Step(context.Background()); !done || !errors.Is(err, context.Canceled) {
+	if done, err := game.Step(context.Background()); !done || !errors.Is(err, context.Canceled) {
 		t.Fatal("已关闭的会话不得再次推进")
 	}
 }

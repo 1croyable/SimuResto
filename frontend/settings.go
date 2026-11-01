@@ -41,6 +41,7 @@ const (
 	mainWeight
 	starterWeight
 	dessertWeight
+	studentTemperature
 )
 
 type settingSpec struct {
@@ -78,6 +79,7 @@ var settingSpecs = []settingSpec{
 	{"主菜满意度权重", "Main score weight", "", 0, 10, 0.25, false},
 	{"前菜满意度权重", "Starter score weight", "", 0, 10, 0.25, false},
 	{"甜点满意度权重", "Dessert score weight", "", 0, 10, 0.25, false},
+	{"学生选菜温度", "Choice temperature", "", 0, 10, 0.1, false},
 }
 
 var settingTabs = [][2]string{
@@ -105,6 +107,10 @@ func settingText(value float64) string {
 
 func (g *Game) populateSettings() {
 	c := g.options.Config
+	temperature := simulation.DefaultTemperature
+	if len(g.options.Students) > 0 {
+		temperature = g.options.Students[0].Temperature
+	}
 	values := []float64{
 		float64(len(g.options.Students)), g.options.ArrivalInterval.Seconds(), float64(c.Seed),
 		float64(c.Capacities.Outside), float64(c.Capacities.Inside), float64(c.Capacities.SelfService), float64(c.Capacities.MainService), float64(c.Capacities.Payment),
@@ -113,6 +119,7 @@ func (g *Game) populateSettings() {
 		c.Tick.Seconds(), c.MaxDuration.Minutes(), g.speed, float64(c.IndoorLossPerSecond), float64(c.OutdoorLossPerSecond),
 		float64(c.MaxStartersPerStudent), float64(c.MaxDessertsPerStudent), float64(c.MaxSelfServiceItems),
 		float64(c.SatisfactionWeights.Main), float64(c.SatisfactionWeights.Starter), float64(c.SatisfactionWeights.Dessert),
+		float64(temperature),
 	}
 	for _, dish := range c.Menu {
 		switch dish.Course {
@@ -146,7 +153,11 @@ func (g *Game) restoreDefaults() {
 	g.options.Config.Tick = 250 * time.Millisecond
 	g.options.Config.Capacities.Payment, g.options.Config.Cashiers = 2, 2
 	g.options.ArrivalInterval, g.speed = time.Second, 4
-	g.options.Students, _ = simulation.GenerateStudents(100, g.options.Config.Seed, time.Second)
+	generator := simulation.StudentGenerator{
+		Seed:            g.options.Config.Seed,
+		ArrivalInterval: time.Second,
+	}
+	g.options.Students, _ = generator.Generate(100)
 	g.populateSettings()
 }
 
@@ -204,9 +215,16 @@ func (g *Game) startConfigured() error {
 	distributePortions(c.Menu, simulation.Main, false, int(values[meatStock]))
 	distributePortions(c.Menu, simulation.Dessert, true, int(values[dessertStock]))
 	interval := time.Duration(values[arrivalSeconds] * float64(time.Second))
-	students, err := simulation.GenerateStudents(int(values[studentCount]), c.Seed, interval)
+	generator := simulation.StudentGenerator{
+		Seed:            c.Seed,
+		ArrivalInterval: interval,
+	}
+	students, err := generator.Generate(int(values[studentCount]))
 	if err != nil {
 		return err
+	}
+	for i := range students {
+		students[i].Temperature = float32(values[studentTemperature])
 	}
 	g.options.Config, g.options.Students, g.options.ArrivalInterval = c, students, interval
 	g.speed = values[playbackSpeed]

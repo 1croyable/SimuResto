@@ -78,6 +78,9 @@ func (c Config) validate(students []Student) error {
 			return fmt.Errorf("student IDs must be positive and unique: %d", student.ID)
 		}
 		studentIDs[student.ID] = true
+		if math.IsNaN(float64(student.Temperature)) || math.IsInf(float64(student.Temperature), 0) || student.Temperature < 0 {
+			return fmt.Errorf("student temperature must be finite and nonnegative: %d", student.ID)
+		}
 		if student.Preference != Vegetarian && student.Preference != MeatPreferred {
 			return fmt.Errorf("invalid preference for student %d", student.ID)
 		}

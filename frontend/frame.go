@@ -18,7 +18,7 @@ func (l *frameLimiter) delay(now time.Time) time.Duration {
 
 // 沿绝对时间表安排下一帧，不把 Sleep 的每次晚唤醒累加到帧周期。
 // 若已错过整帧则重新同步，不以连续补帧追赶长时间的卡顿。
-func (l *frameLimiter) advance(now time.Time) {
+func (l *frameLimiter) step(now time.Time) {
 	if l.next.IsZero() || now.Sub(l.next) >= frameInterval {
 		l.next = now.Add(frameInterval)
 		return
@@ -31,5 +31,5 @@ func (l *frameLimiter) wait() {
 	if delay := l.delay(time.Now()); delay > 0 {
 		time.Sleep(delay)
 	}
-	l.advance(time.Now())
+	l.step(time.Now())
 }

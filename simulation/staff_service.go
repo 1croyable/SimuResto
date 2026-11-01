@@ -12,7 +12,7 @@ func (e *engine) assignStaff() {
 			area = Payment
 		}
 		for _, id := range e.queues[area].IDs() {
-			student := e.byID[id]
+			student := e.ID2Student[id]
 			if student.started {
 				continue
 			}
@@ -21,7 +21,7 @@ func (e *engine) assignStaff() {
 			signal := PaymentStarted
 			if area == MainService {
 				var substituted bool
-				task.dishID, substituted = e.stock.reserveMain(student.plan.mainChoices)
+				task.dishID, substituted = e.reserveStudentMain(student)
 				if substituted {
 					e.emit(MainSubstituted, id, worker.result.Staff.ID, area, area, task.dishID)
 				}
@@ -38,7 +38,7 @@ func (e *engine) assignStaff() {
 	}
 }
 
-func (e *engine) advanceStaffService(step time.Duration) {
+func (e *engine) stepStaffService(step time.Duration) {
 	// 先向所有工作人员发送时钟更新，再按工作人员顺序处理回复，
 	// 保证事件记录不受 goroutine 调度顺序影响。
 	for _, worker := range e.staff {
@@ -61,7 +61,7 @@ func (e *engine) advanceStaffService(step time.Duration) {
 		if result.signal == Progress {
 			continue
 		}
-		student := e.byID[result.studentID]
+		student := e.ID2Student[result.studentID]
 		student.ready = true
 		worker.result.Served++
 		var dishes []string

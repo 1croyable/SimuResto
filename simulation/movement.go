@@ -9,14 +9,14 @@ func (e *engine) enter(student *studentState, area Area) {
 	student.result.Area = area
 	student.result.Path = append(student.result.Path, area)
 	student.started, student.ready, student.elapsed = false, false, 0
-	e.peaks[area] = max(e.peaks[area], e.queues[area].Len())
+	e.stats.peakOccupancy[area] = max(e.stats.peakOccupancy[area], e.queues[area].Len())
 	e.emit(Entered, id, 0, from, area)
 }
 
 func (e *engine) admit() {
-	for e.next < len(e.arrivals) && e.arrivals[e.next].result.Student.ArrivalTime <= e.now {
-		student := e.arrivals[e.next]
-		e.next++
+	for e.nextArrivalIndex < len(e.arrivalStudent) && e.arrivalStudent[e.nextArrivalIndex].result.Student.ArrivalTime <= e.now {
+		student := e.arrivalStudent[e.nextArrivalIndex]
+		e.nextArrivalIndex++
 		student.result.ArrivalTime = e.now
 		e.emit(Arrived, student.result.Student.ID, 0, NoArea, NoArea)
 		area := Outside
@@ -26,7 +26,7 @@ func (e *engine) admit() {
 		if e.queues[area].Len() == e.queues[area].Capacity() {
 			student.result.Status = Rejected
 			student.result.ExitTime = e.now
-			e.finished++
+			e.stats.finishedStudentCount++
 			e.emit(QueueFull, student.result.Student.ID, 0, NoArea, NoArea)
 			continue
 		}
@@ -38,6 +38,7 @@ func (e *engine) admit() {
 	}
 }
 
+// 往前走，前进一步
 func (e *engine) moveForward() {
 	route := ServiceRoute()
 	for {
@@ -49,21 +50,23 @@ func (e *engine) moveForward() {
 				if !ok {
 					break
 				}
-				student := e.byID[id]
+
+				student := e.ID2Student[id]
 				if !area.IsWaitingArea() && !student.ready {
 					break
 				}
+
 				if area == Payment {
 					queue.Dequeue()
 					student.result.Area = NoArea
 					student.result.Status = Completed
 					student.result.ExitTime = e.now
-					e.finished++
+					e.stats.finishedStudentCount++
 					e.emit(Finished, id, 0, Payment, NoArea)
 				} else {
 					next := route[i+1]
 					if e.queues[next].Len() == e.queues[next].Capacity() {
-						break
+						break //full
 					}
 					queue.Dequeue()
 					e.enter(student, next)

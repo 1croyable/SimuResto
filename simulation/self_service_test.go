@@ -1,9 +1,7 @@
 package simulation
 
 import (
-	"reflect"
 	"testing"
-	"time"
 )
 
 func TestSidesShareAllowanceAndReplaceUnavailableCourses(t *testing.T) {
@@ -51,23 +49,5 @@ func TestSideSubstitutionRespectsVegetarianPreference(t *testing.T) {
 	result := runMeal(t, c, mealStudent())
 	if len(result.Meal.Starters)+len(result.Meal.Desserts) != 0 || result.Satisfaction != 40 {
 		t.Fatal("素食学生不能用含肉前菜补足配菜")
-	}
-}
-
-func TestGeneratedStudentsUseAllSideCombinationsReproducibly(t *testing.T) {
-	students, err := GenerateStudents(100, 42, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	seen := map[int]bool{}
-	for _, student := range students {
-		if student.StartersWanted < 0 || student.DessertsWanted < 0 || student.StartersWanted+student.DessertsWanted != 2 {
-			t.Fatal("默认配菜期望合计应为两份")
-		}
-		seen[student.StartersWanted] = true
-	}
-	again, _ := GenerateStudents(100, 42, time.Second)
-	if len(seen) != 3 || !reflect.DeepEqual(students, again) {
-		t.Fatal("应覆盖三种组合，相同种子应生成相同学生")
 	}
 }

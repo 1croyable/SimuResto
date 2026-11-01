@@ -1,7 +1,10 @@
 package simulation
 
+import "sync"
+
 // 食堂库存管理结构体
 type inventory struct {
+	mu           sync.Mutex     // 保护完整的选菜及库存变更过程。
 	items        []Stock        //库存列表，保存每种菜的剩余份数、预留份数、已领取份数
 	byID         map[string]int //菜品到item中的索引
 	fallbackMain int            // 评分最低的素食主菜，常规候选售罄后自动补充。
@@ -41,36 +44,41 @@ func newInventory(menu []Dish) *inventory {
 	return stock
 }
 
-func (inventory *inventory) takeSides(choices []string, count int) []Dish {
-	var dishes []Dish
-	for range count {
-		found := false
-		for _, id := range choices {
-			stock := &inventory.items[inventory.byID[id]]
-			if stock.Remaining > 0 {
-				stock.Remaining--
-				stock.Taken++
-				dishes = append(dishes, stock.Dish)
-				found = true
-				break
-			}
+// availableDishes 只返回当前有库存的菜品；肉食主菜有货时优先提供肉类。
+// 调用方必须持有 mu，直到选中的份数被扣除或预留。
+func (inventory *inventory) availableDishes(course Course, preference Preference) []Dish {
+	var dishes, meatMains []Dish
+	for _, stock := range inventory.items {
+		dish := stock.Dish
+		if stock.Remaining <= 0 || dish.Course != course || (preference == Vegetarian && !dish.Vegetarian) {
+			continue
 		}
-		if !found {
-			break
+		dishes = append(dishes, dish)
+		if course == Main && !dish.Vegetarian {
+			meatMains = append(meatMains, dish)
 		}
+	}
+	if preference == MeatPreferred && len(meatMains) > 0 {
+		return meatMains
 	}
 	return dishes
 }
 
+func (inventory *inventory) takeSide(id string) Dish {
+	stock := &inventory.items[inventory.byID[id]]
+	stock.Remaining--
+	stock.Taken++
+	return stock.Dish
+}
+
 // reserveMain 优先消耗常规库存，全部不可用时改用兜底素食；返回值标记是否启用兜底。
-func (inventory *inventory) reserveMain(choices []string) (string, bool) {
-	for _, id := range choices {
+// 与 takeSide 一样，调用方必须持有 mu。
+func (inventory *inventory) reserveMain(id string) (string, bool) {
+	if id != "" {
 		stock := &inventory.items[inventory.byID[id]]
-		if stock.Remaining > 0 {
-			stock.Remaining--
-			stock.Reserved++
-			return id, false
-		}
+		stock.Remaining--
+		stock.Reserved++
+		return id, false
 	}
 	stock := &inventory.items[inventory.fallbackMain]
 	if stock.Remaining == 0 {
@@ -84,6 +92,8 @@ func (inventory *inventory) reserveMain(choices []string) (string, bool) {
 
 // deliverMain 将一份预留库存转换为一份已交付主菜。
 func (stock *inventory) deliverMain(id string) Dish {
+	stock.mu.Lock()
+	defer stock.mu.Unlock()
 	item := &stock.items[stock.byID[id]]
 	item.Reserved--
 	item.Taken++
@@ -91,6 +101,8 @@ func (stock *inventory) deliverMain(id string) Dish {
 }
 
 func (stock *inventory) releaseMain(id string) {
+	stock.mu.Lock()
+	defer stock.mu.Unlock()
 	item := &stock.items[stock.byID[id]]
 	item.Reserved--
 	item.Remaining++

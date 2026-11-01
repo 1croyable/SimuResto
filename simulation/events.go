@@ -14,7 +14,7 @@ type Event struct {
 }
 
 func (e *engine) emit(signal Signal, id, staffID int, from, to Area, dishes ...string) {
-	e.events = append(e.events, Event{
+	e.stats.events = append(e.stats.events, Event{
 		Time: e.now, Signal: signal, StudentID: id, StaffID: staffID,
 		From: from, To: to, DishIDs: dishes,
 	})

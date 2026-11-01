@@ -19,7 +19,7 @@ func neutralMealConfig() Config {
 }
 
 func mealStudent() Student {
-	return Student{ID: 1, Preference: Vegetarian, Patience: time.Hour, Satisfaction: 50, StartersWanted: 1, DessertsWanted: 1}
+	return Student{ID: 1, Preference: Vegetarian, Temperature: DefaultTemperature, Patience: time.Hour, Satisfaction: 50, StartersWanted: 1, DessertsWanted: 1}
 }
 
 func runMeal(t *testing.T, c Config, student Student) StudentResult {
@@ -138,16 +138,16 @@ func TestFoodEffectIncludingShortagesIsCappedAt50(t *testing.T) {
 func TestFoodEffectIsSettledOnlyOnceAtMainDelivery(t *testing.T) {
 	c := neutralMealConfig()
 	c.Menu[1].Portions, c.Menu[2].Portions = 0, 0
-	session, err := NewSession(c, []Student{mealStudent()})
+	game, err := NewGame(c, []Student{mealStudent()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer session.Close()
+	defer game.Close()
 	for step, want := range []float32{50, 40, 40} {
-		if _, err := session.Step(context.Background()); err != nil {
+		if _, err := game.Step(context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		if got := session.Snapshot().Students[0].Satisfaction; got != want {
+		if got := game.Snapshot().Students[0].Satisfaction; got != want {
 			t.Fatalf("第 %d 步满意度 %v，期望 %v；配菜缺货应随主菜交付统一结算一次", step+1, got, want)
 		}
 	}

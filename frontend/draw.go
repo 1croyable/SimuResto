@@ -353,7 +353,7 @@ func (g *Game) inspector(screen *ebiten.Image) {
 		g.text(screen, fmt.Sprintf(g.label("当前平均满意度  %.1f / 100", "Average satisfaction  %.1f / 100"), g.snapshot.Metrics.AverageSatisfaction), 1100, 656, 14, ink)
 		return
 	}
-	g.text(screen, fmt.Sprintf(g.label("学生 #%d", "STUDENT #%d"), selected.Student.ID), 1100, 530, 17, ink)
+	g.text(screen, fmt.Sprintf(g.label("学生 #%d · 温度 %g", "STUDENT #%d / T %g"), selected.Student.ID, selected.Student.Temperature), 1100, 530, 17, ink)
 	preference := g.label("肉食倾向", "Meat preferred")
 	if selected.Student.Preference == simulation.Vegetarian {
 		preference = g.label("素食", "Vegetarian")

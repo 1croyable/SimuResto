@@ -44,7 +44,7 @@ type dot struct {
 
 type Game struct {
 	options        Options
-	session        *simulation.Session
+	simulationGame *simulation.Game
 	snapshot       simulation.Snapshot
 	font           *text.GoTextFaceSource
 	chinese        bool
@@ -97,15 +97,15 @@ func New(options Options) (*Game, error) {
 
 func (g *Game) reset() error {
 	g.clearRenderCache()
-	if g.session != nil {
-		g.session.Close()
+	if g.simulationGame != nil {
+		g.simulationGame.Close()
 	}
-	session, err := simulation.NewSession(g.options.Config, g.options.Students)
+	simulationGame, err := simulation.NewGame(g.options.Config, g.options.Students)
 	if err != nil {
 		return err
 	}
-	g.session = session
-	g.snapshot = session.Snapshot()
+	g.simulationGame = simulationGame
+	g.snapshot = simulationGame.Snapshot()
 	g.dots = make(map[int]*dot)
 	g.accumulator, g.selected, g.notice = 0, 0, ""
 	g.paused = false
@@ -114,20 +114,20 @@ func (g *Game) reset() error {
 }
 
 func (g *Game) Close() {
-	if g.session != nil {
-		g.session.Close()
+	if g.simulationGame != nil {
+		g.simulationGame.Close()
 	}
 }
 
 func (g *Game) step() {
-	_, err := g.session.Step(context.Background())
+	_, err := g.simulationGame.Step(context.Background())
 	if err != nil && !errors.Is(err, simulation.ErrTimeLimit) {
 		g.notice = err.Error()
 	}
 	if errors.Is(err, simulation.ErrTimeLimit) {
 		g.notice = g.label("达到模拟时限", "Time limit reached")
 	}
-	g.snapshot = g.session.Snapshot()
+	g.snapshot = g.simulationGame.Snapshot()
 	g.syncDots()
 }
 

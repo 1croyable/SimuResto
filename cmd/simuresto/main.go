@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
 	"text/tabwriter"
@@ -24,6 +25,7 @@ func run() int {
 	guiOptions := graphicalFlags()
 	count := flag.Int("students", 80, "number of students")
 	seed := flag.Int64("seed", config.Seed, "seed for student profiles and meal choices")
+	temperature := flag.Float64("temperature", float64(simulation.DefaultTemperature), "student choice temperature (0 selects the highest score)")
 	arrivalInterval := flag.Duration("arrival-interval", time.Second, "simulated time between arrivals (0 for a crowd)")
 	jsonOutput := flag.Bool("json", false, "print the complete report as JSON (durations in nanoseconds)")
 	events := flag.Bool("events", false, "print agent interactions before the summary")
@@ -51,6 +53,10 @@ func run() int {
 	meatMains := flag.Int("meat-mains", 60, "total daily meat main portions")
 	desserts := flag.Int("desserts", 90, "total daily dessert portions")
 	flag.Parse()
+	if math.IsNaN(*temperature) || math.IsInf(*temperature, 0) || *temperature < 0 || *temperature > math.MaxFloat32 {
+		fmt.Fprintln(os.Stderr, "temperature must be finite, nonnegative and fit in float32")
+		return 2
+	}
 	if flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "unexpected positional arguments; use -help for options")
 		return 2
@@ -70,10 +76,17 @@ func run() int {
 	setMenuPortions(config.Menu, simulation.Main, true, *vegetarianMains)
 	setMenuPortions(config.Menu, simulation.Main, false, *meatMains)
 	setMenuPortions(config.Menu, simulation.Dessert, true, *desserts)
-	students, err := simulation.GenerateStudents(*count, *seed, *arrivalInterval)
+	generator := simulation.StudentGenerator{
+		Seed:            *seed,
+		ArrivalInterval: *arrivalInterval,
+	}
+	students, err := generator.Generate(*count)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
+	}
+	for i := range students {
+		students[i].Temperature = float32(*temperature)
 	}
 	if *gui {
 		guiOptions.Config, guiOptions.Students = config, students

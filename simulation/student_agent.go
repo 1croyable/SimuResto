@@ -1,18 +1,20 @@
 package simulation
 
-import "time"
+import (
+	"math/rand"
+	"time"
+)
 
 type observation struct {
 	area         Area
 	waiting      time.Duration
 	satisfaction float32
+	dishes       []Dish // 本次领取时有库存且符合饮食限制的菜品。
 }
 
 type decision struct {
-	leave          bool
-	starterChoices []string
-	mainChoices    []string // 按偏好排序的候选项，最终只选择一份有库存的主菜。
-	dessertChoices []string
+	leave  bool
+	dishID string // 本次抽中的一份菜品。
 }
 
 type studentAgent struct {
@@ -20,15 +22,16 @@ type studentAgent struct {
 	out chan decision
 }
 
-// 每名学生拥有独立 goroutine，返回按偏好排列的候选菜品；
-// 协调器从中选择第一个有库存的菜品，并原子地更新库存。
-func runStudent(student Student, menu []Dish, seed int64, agent studentAgent) {
-	plan := chooseMeal(student, menu, seed)
+// 每名学生拥有独立 goroutine 和随机源，按实时可用菜品抽取一份。
+func runStudent(student Student, seed int64, agent studentAgent) {
+	studentSeed := int64(uint64(seed) ^ (uint64(student.ID) * 0x9e3779b97f4a7c15))
+	rng := rand.New(rand.NewSource(studentSeed))
 	for state := range agent.in {
-		response := plan
+		response := decision{}
 		// 领取托盘后，学生继续完成取餐和付款，不再因耐心耗尽离队。
 		response.leave = state.area.IsWaitingArea() &&
 			(state.waiting >= student.Patience || state.satisfaction <= 0)
+		response.dishID = weightedChoice(rng, state.dishes, student.Preference, student.Temperature)
 		agent.out <- response
 	}
 }
@@ -57,14 +60,14 @@ func (e *engine) askStudents(scope decisionScope) {
 		asked = append(asked, student)
 	}
 	for _, student := range asked {
-		student.plan = <-student.agent.out
-		if student.plan.leave {
+		response := <-student.agent.out
+		if response.leave {
 			area := student.result.Area
 			e.queues[area].Remove(student.result.Student.ID)
 			student.result.Area = NoArea
 			student.result.Status = Abandoned
 			student.result.ExitTime = e.now
-			e.finished++
+			e.stats.finishedStudentCount++
 			e.emit(LeftQueue, student.result.Student.ID, 0, area, NoArea)
 		}
 	}

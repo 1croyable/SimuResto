@@ -46,7 +46,7 @@ type Report struct {
 
 func (e *engine) report() Report {
 	report := Report{
-		Duration: e.now, Stock: e.stock.items, Events: e.events, PeakOccupancy: e.peaks,
+		Duration: e.now, Stock: e.stock.items, Events: e.stats.events, PeakOccupancy: e.stats.peakOccupancy,
 		Metrics: Metrics{AverageWaitByArea: make(map[Area]time.Duration)},
 	}
 	var totalWait time.Duration

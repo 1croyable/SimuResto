@@ -20,15 +20,15 @@ type Snapshot struct {
 	Done    bool
 }
 
-func (s *Session) Snapshot() Snapshot {
-	snapshot := Snapshot{Report: s.Report(), Done: s.done}
+func (g *Game) Snapshot() Snapshot {
+	snapshot := Snapshot{Report: g.Report(), Done: g.done}
 	for _, area := range ServiceRoute() {
-		queue := s.engine.queues[area]
+		queue := g.engine.queues[area]
 		snapshot.Zones = append(snapshot.Zones, ZoneSnapshot{
 			Area: area, Capacity: queue.Capacity(), StudentIDs: queue.IDs(),
 		})
 	}
-	for _, worker := range s.engine.staff {
+	for _, worker := range g.engine.staff {
 		view := WorkerSnapshot{Staff: worker.result.Staff}
 		if worker.job != nil {
 			view.StudentID = worker.job.studentID
