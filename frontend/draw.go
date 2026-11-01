@@ -332,7 +332,7 @@ func (g *Game) sidebar(screen *ebiten.Image) {
 		remaining += stock.Remaining
 	}
 	g.text(screen, fmt.Sprintf(g.label("平均等待   %s", "Average wait   %s"), g.snapshot.Metrics.AverageWait.Round(time.Second)), 1100, 780, 14, muted)
-	g.text(screen, fmt.Sprintf(g.label("剩余餐品   %d 份", "Remaining   %d portions"), remaining), 1100, 807, 14, muted)
+	g.text(screen, fmt.Sprintf(g.label("预备餐品 %d 份 · 兜底主菜不限量", "Prepared %d / fallback unlimited"), remaining), 1100, 807, 13, muted)
 	if g.notice != "" {
 		g.text(screen, g.fit(g.notice, 12, 300), 1100, 837, 12, red)
 	}

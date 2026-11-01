@@ -34,6 +34,9 @@ func TestSettingsApplyBeforeStartingAgents(t *testing.T) {
 	g.settingValues[meatStock] = "9"
 	g.settingValues[dessertStock] = "11"
 	g.settingValues[playbackSpeed] = "2"
+	g.settingValues[mainWeight] = "3.5"
+	g.settingValues[starterWeight] = "0"
+	g.settingValues[dessertWeight] = "2"
 	if err := g.startConfigured(); err != nil {
 		t.Fatal(err)
 	}
@@ -46,6 +49,9 @@ func TestSettingsApplyBeforeStartingAgents(t *testing.T) {
 	}
 	if g.snapshot.Duration != 0 {
 		t.Fatal("开始前不应累计模拟时间")
+	}
+	if g.options.Config.SatisfactionWeights != (simulation.CourseWeights{Main: 3.5, Starter: 0, Dessert: 2}) {
+		t.Fatal("开始模拟时必须应用界面上的满意度权重")
 	}
 	counts := [4]int{}
 	for _, stock := range g.snapshot.Stock {
@@ -68,7 +74,7 @@ func TestSettingsApplyBeforeStartingAgents(t *testing.T) {
 	g.step()
 	old := g.session
 	g.openSettings()
-	if !g.configuring || g.settingValues[studentCount] != "12" {
+	if !g.configuring || g.settingValues[studentCount] != "12" || g.settingValues[mainWeight] != "3.5" {
 		t.Fatal("返回设置应保留上一轮参数")
 	}
 	if done, err := old.Step(context.Background()); !done || !errors.Is(err, context.Canceled) {
@@ -82,6 +88,7 @@ func TestInvalidSettingsDoNotStartSimulation(t *testing.T) {
 		value string
 	}{
 		{studentCount, ""}, {studentCount, "-1"}, {studentCount, "1.5"}, {cashierCount, "3"}, {tickSeconds, "0"}, {starterStock, "-1"}, {outdoorLoss, "0.01"}, {playbackSpeed, "NaN"},
+		{mainWeight, "-1"}, {starterWeight, "NaN"}, {dessertWeight, "11"},
 	} {
 		g := settingsGame()
 		g.settingValues[change.key] = change.value
@@ -91,5 +98,18 @@ func TestInvalidSettingsDoNotStartSimulation(t *testing.T) {
 		if g.session != nil || !g.configuring {
 			t.Fatal("错误参数不得启动后台模拟")
 		}
+	}
+}
+
+func TestSettingsRejectZeroWeightsAndRestoreDefaults(t *testing.T) {
+	g := settingsGame()
+	g.settingValues[mainWeight], g.settingValues[starterWeight], g.settingValues[dessertWeight] = "0", "0", "0"
+	if err := g.startConfigured(); err == nil || g.session != nil || g.settingsTab != 3 {
+		t.Fatal("权重全零应回到菜品满意度页提示，不能启动智能体")
+	}
+	g.restoreDefaults()
+	if g.settingValues[mainWeight] != "2" || g.settingValues[starterWeight] != "1" || g.settingValues[dessertWeight] != "1" ||
+		g.settingValues[starterLimit] != "2" || g.settingValues[dessertLimit] != "2" || g.settingValues[totalSideLimit] != "2" {
+		t.Fatal("默认权重应为 2:1:1，配菜每类及合计上限均应为 2")
 	}
 }

@@ -59,6 +59,7 @@ const (
 	FoodCollected    Signal = "food_collected"
 	OrderPlaced      Signal = "order_placed"
 	MainServed       Signal = "main_served"
+	MainSubstituted  Signal = "main_substituted" // 常规主菜售罄，改用兜底素食。
 	FoodUnavailable  Signal = "food_unavailable"
 	PaymentStarted   Signal = "payment_started"
 	Paid             Signal = "paid"

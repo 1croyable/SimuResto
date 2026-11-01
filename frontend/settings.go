@@ -38,6 +38,9 @@ const (
 	starterLimit
 	dessertLimit
 	totalSideLimit
+	mainWeight
+	starterWeight
+	dessertWeight
 )
 
 type settingSpec struct {
@@ -46,7 +49,7 @@ type settingSpec struct {
 	integer                bool
 }
 
-// 参数分成三页，每页八项；范围同时用于按钮步进和开始前校验。
+// 每页最多八项；范围同时用于按钮步进和开始前校验。
 var settingSpecs = []settingSpec{
 	{"学生人数", "Students", "", 1, 2000, 10, true},
 	{"到达间隔", "Arrival interval", "s", 0, 60, 0.25, false},
@@ -72,6 +75,20 @@ var settingSpecs = []settingSpec{
 	{"每人前菜上限", "Starter allowance", "", 0, 5, 1, true},
 	{"每人甜点上限", "Dessert allowance", "", 0, 5, 1, true},
 	{"每人配菜总上限", "Total side allowance", "", 0, 10, 1, true},
+	{"主菜满意度权重", "Main score weight", "", 0, 10, 0.25, false},
+	{"前菜满意度权重", "Starter score weight", "", 0, 10, 0.25, false},
+	{"甜点满意度权重", "Dessert score weight", "", 0, 10, 0.25, false},
+}
+
+var settingTabs = [][2]string{
+	{"01  人流与队列", "01  Arrivals & queues"},
+	{"02  服务与库存", "02  Service & stock"},
+	{"03  行为与时钟", "03  Behavior & clock"},
+	{"04  菜品满意度", "04  Meal scores"},
+}
+
+func settingTabBox(index int) rectangle {
+	return rectangle{48 + float32(index)*246, 177, 238, 43}
 }
 
 var startButton = rectangle{1100, 782, 300, 54}
@@ -95,6 +112,7 @@ func (g *Game) populateSettings() {
 		0, 0, 0, 0,
 		c.Tick.Seconds(), c.MaxDuration.Minutes(), g.speed, float64(c.IndoorLossPerSecond), float64(c.OutdoorLossPerSecond),
 		float64(c.MaxStartersPerStudent), float64(c.MaxDessertsPerStudent), float64(c.MaxSelfServiceItems),
+		float64(c.SatisfactionWeights.Main), float64(c.SatisfactionWeights.Starter), float64(c.SatisfactionWeights.Dessert),
 	}
 	for _, dish := range c.Menu {
 		switch dish.Course {
@@ -162,6 +180,10 @@ func (g *Game) startConfigured() error {
 		g.settingsTab = 2
 		return fmt.Errorf("%s", g.label("室外每秒扣分必须大于室内每秒扣分。", "Outdoor loss must exceed indoor loss."))
 	}
+	if values[mainWeight]+values[starterWeight]+values[dessertWeight] == 0 {
+		g.settingsTab, g.focusedSetting = int(mainWeight)/8, int(mainWeight)
+		return fmt.Errorf("%s", g.label("主菜、前菜和甜点的权重不能全为 0。", "At least one meal score weight must be positive."))
+	}
 	c := g.options.Config
 	c.Menu = append([]simulation.Dish(nil), c.Menu...)
 	c.Seed = int64(values[randomSeed])
@@ -174,6 +196,9 @@ func (g *Game) startConfigured() error {
 	c.MaxDuration = time.Duration(values[maxMinutes] * float64(time.Minute))
 	c.IndoorLossPerSecond, c.OutdoorLossPerSecond = float32(values[indoorLoss]), float32(values[outdoorLoss])
 	c.MaxStartersPerStudent, c.MaxDessertsPerStudent, c.MaxSelfServiceItems = int(values[starterLimit]), int(values[dessertLimit]), int(values[totalSideLimit])
+	c.SatisfactionWeights = simulation.CourseWeights{
+		Main: float32(values[mainWeight]), Starter: float32(values[starterWeight]), Dessert: float32(values[dessertWeight]),
+	}
 	distributePortions(c.Menu, simulation.Starter, true, int(values[starterStock]))
 	distributePortions(c.Menu, simulation.Main, true, int(values[vegetarianStock]))
 	distributePortions(c.Menu, simulation.Main, false, int(values[meatStock]))
@@ -207,12 +232,12 @@ func (g *Game) updateSettings() {
 	x, y := g.cursor()
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		g.focusedSetting = -1
-		for tab := 0; tab < 3; tab++ {
-			if (rectangle{48 + float32(tab)*326, 177, 310, 43}).contains(x, y) {
+		for tab := range settingTabs {
+			if settingTabBox(tab).contains(x, y) {
 				g.settingsTab = tab
 			}
 		}
-		for i := g.settingsTab * 8; i < g.settingsTab*8+8; i++ {
+		for i := g.settingsTab * 8; i < min(g.settingsTab*8+8, len(settingSpecs)); i++ {
 			box := settingBox(i)
 			if box.contains(x, y) {
 				g.focusedSetting, g.replaceSetting = i, true
@@ -235,10 +260,11 @@ func (g *Game) updateSettings() {
 		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyTab) {
-		if g.focusedSetting < g.settingsTab*8 || g.focusedSetting >= g.settingsTab*8+8 {
-			g.focusedSetting = g.settingsTab * 8
+		start, end := g.settingsTab*8, min(g.settingsTab*8+8, len(settingSpecs))
+		if g.focusedSetting < start || g.focusedSetting >= end {
+			g.focusedSetting = start
 		} else {
-			g.focusedSetting = g.settingsTab*8 + (g.focusedSetting+1)%8
+			g.focusedSetting = start + (g.focusedSetting-start+1)%(end-start)
 		}
 		g.replaceSetting = true
 	}

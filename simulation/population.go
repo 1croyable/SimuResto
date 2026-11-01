@@ -25,8 +25,11 @@ func GenerateStudents(count int, seed int64, arrivalInterval time.Duration) ([]S
 		students[i] = Student{
 			ID: i + 1, Preference: preference, ArrivalTime: time.Duration(i) * arrivalInterval,
 			Patience:     time.Duration(40+rng.Intn(121)) * time.Second,
-			Satisfaction: float32(80 + rng.Intn(16)), StartersWanted: 1, DessertsWanted: 1,
+			Satisfaction: float32(80 + rng.Intn(16)),
 		}
+		// 默认共想拿两份配菜，三种组合都可能出现。
+		students[i].StartersWanted = rng.Intn(3)
+		students[i].DessertsWanted = 2 - students[i].StartersWanted
 	}
 	return students, nil
 }

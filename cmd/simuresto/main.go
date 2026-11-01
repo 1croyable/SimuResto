@@ -37,6 +37,9 @@ func run() int {
 	flag.IntVar(&config.MaxSelfServiceItems, "max-self-items", config.MaxSelfServiceItems, "maximum sides per student in total")
 	flag.IntVar(&config.MaxStartersPerStudent, "max-starters", config.MaxStartersPerStudent, "maximum starters per student")
 	flag.IntVar(&config.MaxDessertsPerStudent, "max-desserts", config.MaxDessertsPerStudent, "maximum desserts per student")
+	mainWeight := flag.Float64("main-weight", float64(config.SatisfactionWeights.Main), "relative satisfaction weight per main portion")
+	starterWeight := flag.Float64("starter-weight", float64(config.SatisfactionWeights.Starter), "relative satisfaction weight per starter portion")
+	dessertWeight := flag.Float64("dessert-weight", float64(config.SatisfactionWeights.Dessert), "relative satisfaction weight per dessert portion")
 	flag.DurationVar(&config.Tick, "tick", config.Tick, "logical clock step")
 	flag.DurationVar(&config.TickInterval, "tick-interval", config.TickInterval, "wall-clock delay per step (0 runs at full speed)")
 	flag.DurationVar(&config.MaxDuration, "max-duration", config.MaxDuration, "maximum simulated duration")
@@ -60,6 +63,9 @@ func run() int {
 		applyGraphicalDefaults(&config, count)
 	}
 	config.Seed = *seed
+	config.SatisfactionWeights = simulation.CourseWeights{
+		Main: float32(*mainWeight), Starter: float32(*starterWeight), Dessert: float32(*dessertWeight),
+	}
 	setMenuPortions(config.Menu, simulation.Starter, true, *starters)
 	setMenuPortions(config.Menu, simulation.Main, true, *vegetarianMains)
 	setMenuPortions(config.Menu, simulation.Main, false, *meatMains)
@@ -144,9 +150,9 @@ func printSummary(report simulation.Report) {
 	} {
 		fmt.Fprintf(writer, "%s\t%d\t%s\n", area, report.PeakOccupancy[area], metrics.AverageWaitByArea[area].Round(time.Millisecond))
 	}
-	fmt.Fprintln(writer, "\nDISH\tTAKEN\tREMAINING")
+	fmt.Fprintln(writer, "\nDISH\tTAKEN\tREMAINING\tREPLENISHED")
 	for _, stock := range report.Stock {
-		fmt.Fprintf(writer, "%s\t%d\t%d\n", stock.Dish.Name, stock.Taken, stock.Remaining)
+		fmt.Fprintf(writer, "%s\t%d\t%d\t%d\n", stock.Dish.Name, stock.Taken, stock.Remaining, stock.Replenished)
 	}
 	fmt.Fprintln(writer, "\nSTAFF\tSERVED\tUTILIZATION")
 	for _, worker := range report.Staff {

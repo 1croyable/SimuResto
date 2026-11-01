@@ -18,11 +18,10 @@ func (g *Game) drawSettings(screen *ebiten.Image) {
 	g.panel(screen, rectangle{20, 90, 1044, 770})
 	g.text(screen, g.label("开始之前", "BEFORE YOU START"), 48, 111, 25, ink)
 	g.text(screen, g.label("点击数值直接输入，或用 + / − 调整。开始后才会启动学生和工作人员。", "Type a value or use + / -. Agents start only after you launch the simulation."), 48, 148, 13, muted)
-	tabs := [][2]string{{"01  人流与队列", "01  Arrivals & queues"}, {"02  服务与库存", "02  Service & stock"}, {"03  行为与时钟", "03  Behavior & clock"}}
-	for i, tab := range tabs {
-		g.button(screen, rectangle{48 + float32(i)*326, 177, 310, 43}, g.label(tab[0], tab[1]), g.settingsTab == i)
+	for i, tab := range settingTabs {
+		g.button(screen, settingTabBox(i), g.label(tab[0], tab[1]), g.settingsTab == i)
 	}
-	for i := g.settingsTab * 8; i < g.settingsTab*8+8; i++ {
+	for i := g.settingsTab * 8; i < min(g.settingsTab*8+8, len(settingSpecs)); i++ {
 		spec, box := settingSpecs[i], settingBox(i)
 		g.text(screen, g.label(spec.cn, spec.en), float64(box.x), float64(box.y-29), 15, ink)
 		outline := border
@@ -47,6 +46,13 @@ func (g *Game) drawSettings(screen *ebiten.Image) {
 		g.button(screen, rectangle{box.x + 354, box.y, 46, 46}, "−", false)
 		g.button(screen, rectangle{box.x + 410, box.y, 46, 46}, "+", false)
 		g.text(screen, fmt.Sprintf(g.label("范围 %s–%s", "Range %s–%s"), settingText(spec.minimum), settingText(spec.maximum)), float64(box.x), float64(box.y+52), 12, muted)
+	}
+	if g.settingsTab == int(mainWeight)/8 {
+		g.text(screen, g.label("50 分为中性：高于 50 加分，低于 50 扣分。", "50 is neutral: higher scores add satisfaction; lower scores subtract."), 48, 540, 17, ink)
+		g.text(screen, g.label("整餐变化 = 每份菜的（评分 − 50）按权重加权平均。", "Meal change = weighted average of each portion's (score - 50)."), 48, 580, 15, muted)
+		g.text(screen, g.label("默认主菜 : 前菜 : 甜点 = 2 : 1 : 1；两份甜点各计算一次权重。", "Default main : starter : dessert = 2 : 1 : 1; each portion counts separately."), 48, 620, 15, muted)
+		g.text(screen, g.label("前菜和甜点默认合计两份，可以选 2 + 0、1 + 1 或 0 + 2。", "Two sides by default: 2 starters, one of each, or 2 desserts."), 48, 660, 15, muted)
+		g.text(screen, g.label("主菜偏好不符先减 25 分，最低为 0；餐品总影响含缺货最多 ±50 分。", "Mismatched main: score -25, minimum 0. Total food effect including shortages: +/-50."), 48, 700, 15, muted)
 	}
 	if g.settingsError != "" {
 		g.rounded(screen, rectangle{48, 768, 976, 52}, 8, color.NRGBA{253, 235, 235, 255})

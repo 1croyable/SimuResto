@@ -9,8 +9,8 @@ type Student struct {
 	ArrivalTime    time.Duration
 	Patience       time.Duration //是否改成数值比较好？
 	Satisfaction   float32       //满分100，0-100
-	StartersWanted int
-	DessertsWanted int
+	StartersWanted int           // 优先想拿的前菜份数，缺货或受限时允许换成甜点。
+	DessertsWanted int           // 优先想拿的甜点份数，缺货或受限时允许换成前菜。
 }
 
 type Staff struct {
@@ -20,21 +20,22 @@ type Staff struct {
 }
 
 type Dish struct {
-	ID               string
-	Name             string
-	Course           Course
-	Vegetarian       bool
-	Portions         int
-	SatisfactionGain float32 // 每领取一份增加的满意度，也决定选菜权重。
+	ID                string
+	Name              string
+	Course            Course
+	Vegetarian        bool
+	Portions          int
+	SatisfactionScore float32 // 菜品评分为 0–100，50 分中性；也影响选菜概率。
 }
 
-// Stock 记录每日库存，满足 Remaining + Reserved + Taken == Dish.Portions。
+// Stock 满足 Remaining + Reserved + Taken == Dish.Portions + Replenished。
 // 主菜接单时预留，工作人员交付后才计入已领取份数。
 type Stock struct {
-	Dish      Dish
-	Remaining int //还在柜台内的部分
-	Reserved  int //正在打饭
-	Taken     int //已经领取
+	Dish        Dish
+	Remaining   int //还在柜台内的部分
+	Reserved    int //正在打饭
+	Taken       int //已经领取
+	Replenished int // 兜底素食自动补充的份数，普通菜品为零。
 }
 
 type Meal struct {

@@ -3,21 +3,21 @@ package simulation
 import "math/rand"
 
 // weightedChoices 按权重随机排列候选菜品，不重复抽取同一菜品。
-// 每轮 P(菜品) = (1 + 满意度收益) / 剩余候选的权重总和。
-// 基础权重 1 让收益为零的菜也有机会被选中。
+// 每轮 P(菜品) = (1 + 学生对该菜的个人评分) / 剩余候选的权重总和。
+// 基础权重 1 让评分为零的菜也有机会被选中；不使用可能为负的满意度变化量。
 // 库存不足时按此顺序尝试后续候选，仍然只领取允许的份数。
-func weightedChoices(rng *rand.Rand, dishes []Dish) []string {
+func weightedChoices(rng *rand.Rand, dishes []Dish, preference Preference) []string {
 	remaining := append([]Dish(nil), dishes...)
 	var choices []string
 	for len(remaining) > 0 {
 		var total float64
 		for _, dish := range remaining {
-			total += 1 + float64(dish.SatisfactionGain)
+			total += 1 + float64(dishScoreForStudent(dish, preference))
 		}
 		draw := rng.Float64() * total
 		selected := len(remaining) - 1
 		for i, dish := range remaining {
-			draw -= 1 + float64(dish.SatisfactionGain)
+			draw -= 1 + float64(dishScoreForStudent(dish, preference))
 			if draw < 0 {
 				selected = i
 				break
@@ -53,8 +53,8 @@ func chooseMeal(student Student, menu []Dish, seed int64) decision {
 		}
 	}
 	return decision{
-		starterChoices: weightedChoices(rng, starters),
-		mainChoices:    append(weightedChoices(rng, mains), weightedChoices(rng, alternatives)...),
-		dessertChoices: weightedChoices(rng, desserts),
+		starterChoices: weightedChoices(rng, starters, student.Preference),
+		mainChoices:    append(weightedChoices(rng, mains, student.Preference), weightedChoices(rng, alternatives, student.Preference)...),
+		dessertChoices: weightedChoices(rng, desserts, student.Preference),
 	}
 }

@@ -38,6 +38,8 @@ func (s *Session) Step(ctx context.Context) (bool, error) {
 	}
 
 	e.askStudents(allStudents)
+	// 离队腾出的空位立即交给后方学生，再开始服务并统计真实等待。
+	e.moveForward()
 	e.startSelfService()
 	e.assignStaff()
 	step := min(e.config.Tick, e.config.MaxDuration-e.now)

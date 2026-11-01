@@ -37,8 +37,7 @@ func (c Config) validate(students []Student) error {
 		return fmt.Errorf("self-service limits cannot be negative")
 	}
 	for _, value := range []float32{
-		c.IndoorLossPerSecond, c.OutdoorLossPerSecond, c.PreferredMainBonus,
-		c.AlternativeMainPenalty, c.MissingMainPenalty, c.MissingSidePenalty, c.CourseVarietyBonus,
+		c.IndoorLossPerSecond, c.OutdoorLossPerSecond, c.MissingSidePenalty,
 	} {
 		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) || value < 0 {
 			return fmt.Errorf("satisfaction adjustments must be finite and nonnegative")
@@ -46,6 +45,15 @@ func (c Config) validate(students []Student) error {
 	}
 	if c.OutdoorLossPerSecond <= c.IndoorLossPerSecond {
 		return fmt.Errorf("outdoor satisfaction loss must be greater than indoor loss")
+	}
+	weights := c.SatisfactionWeights
+	for _, weight := range []float32{weights.Main, weights.Starter, weights.Dessert} {
+		if math.IsNaN(float64(weight)) || math.IsInf(float64(weight), 0) || weight < 0 {
+			return fmt.Errorf("satisfaction weights must be finite and nonnegative")
+		}
+	}
+	if weights == (CourseWeights{}) {
+		return fmt.Errorf("at least one satisfaction weight must be positive")
 	}
 	dishIDs := make(map[string]bool)
 	for _, dish := range c.Menu {
@@ -59,9 +67,9 @@ func (c Config) validate(students []Student) error {
 		if dish.Portions < 0 {
 			return fmt.Errorf("negative portions for dish %q", dish.ID)
 		}
-		if math.IsNaN(float64(dish.SatisfactionGain)) || math.IsInf(float64(dish.SatisfactionGain), 0) ||
-			dish.SatisfactionGain < 0 || dish.SatisfactionGain > 100 {
-			return fmt.Errorf("dish satisfaction gain must be between 0 and 100: %q", dish.ID)
+		if math.IsNaN(float64(dish.SatisfactionScore)) || math.IsInf(float64(dish.SatisfactionScore), 0) ||
+			dish.SatisfactionScore < 0 || dish.SatisfactionScore > 100 {
+			return fmt.Errorf("dish satisfaction score must be between 0 and 100: %q", dish.ID)
 		}
 	}
 	studentIDs := make(map[int]bool)

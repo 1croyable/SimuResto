@@ -7,12 +7,13 @@ import (
 )
 
 type studentState struct {
-	result  StudentResult
-	agent   studentAgent
-	plan    decision
-	started bool          // 当前区域的服务已经开始。
-	ready   bool          // 当前服务已完成，等待下一区域腾出位置。
-	elapsed time.Duration // 在自助区已经花费的取餐时间。
+	result       StudentResult
+	agent        studentAgent
+	plan         decision
+	started      bool          // 当前区域的服务已经开始。
+	ready        bool          // 当前服务已完成，等待下一区域腾出位置。
+	elapsed      time.Duration // 在自助区已经花费的取餐时间。
+	missingSides int           // 最终缺少的配菜份数，与整餐评分统一结算。
 }
 
 type job struct {

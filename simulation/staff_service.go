@@ -20,12 +20,10 @@ func (e *engine) assignStaff() {
 			task := &job{studentID: id, fresh: true}
 			signal := PaymentStarted
 			if area == MainService {
-				task.dishID = e.stock.reserveMain(student.plan.mainChoices)
-				if task.dishID == "" {
-					student.ready = true
-					e.adjustSatisfaction(student, -e.config.MissingMainPenalty)
-					e.emit(FoodUnavailable, id, 0, area, area)
-					continue
+				var substituted bool
+				task.dishID, substituted = e.stock.reserveMain(student.plan.mainChoices)
+				if substituted {
+					e.emit(MainSubstituted, id, worker.result.Staff.ID, area, area, task.dishID)
 				}
 				signal = OrderPlaced
 			}
@@ -71,11 +69,7 @@ func (e *engine) advanceStaffService(step time.Duration) {
 			dish := e.stock.deliverMain(worker.job.dishID)
 			student.result.Meal.Main = &dish
 			dishes = []string{dish.ID}
-			change := e.config.PreferredMainBonus
-			if student.result.Student.Preference == MeatPreferred && dish.Vegetarian {
-				change = -e.config.AlternativeMainPenalty
-			}
-			e.adjustSatisfaction(student, change+e.config.CourseVarietyBonus+dish.SatisfactionGain)
+			e.scoreMeal(student)
 		}
 		e.emit(result.signal, result.studentID, worker.result.Staff.ID, student.result.Area, student.result.Area, dishes...)
 		worker.job = nil

@@ -10,32 +10,36 @@ func (e *engine) startSelfService() {
 		}
 		student.started = true
 		e.emit(SelfServiceStart, id, 0, SelfService, SelfService)
-		wantStarters := min(student.result.Student.StartersWanted,
-			e.config.MaxStartersPerStudent,
-			e.config.MaxSelfServiceItems)
-
-		student.result.Meal.Starters = e.stock.takeSides(student.plan.starterChoices, wantStarters)
-		wantDesserts := min(student.result.Student.DessertsWanted, e.config.MaxDessertsPerStudent,
-			e.config.MaxSelfServiceItems-len(student.result.Meal.Starters))
-		student.result.Meal.Desserts = e.stock.takeSides(student.plan.dessertChoices, wantDesserts)
-		missing := wantStarters + wantDesserts - len(student.result.Meal.Starters) - len(student.result.Meal.Desserts)
+		student.missingSides = e.collectSides(student)
 		var dishes []string
-		var bonus float32
 		for _, course := range [][]Dish{student.result.Meal.Starters, student.result.Meal.Desserts} {
-			if len(course) > 0 {
-				bonus += e.config.CourseVarietyBonus
-			}
 			for _, dish := range course {
-				bonus += dish.SatisfactionGain
 				dishes = append(dishes, dish.ID)
 			}
 		}
-		e.adjustSatisfaction(student, bonus-float32(missing)*e.config.MissingSidePenalty)
 		e.emit(FoodCollected, id, 0, SelfService, SelfService, dishes...)
-		if missing > 0 {
+		if student.missingSides > 0 {
 			e.emit(FoodUnavailable, id, 0, SelfService, SelfService)
 		}
 	}
+}
+
+// collectSides 先按期望组合领取，再用另一类补足；只对最终缺少的份数扣分。
+func (e *engine) collectSides(student *studentState) int {
+	profile, meal := student.result.Student, &student.result.Meal
+	wanted := min(profile.StartersWanted+profile.DessertsWanted, e.config.MaxSelfServiceItems,
+		e.config.MaxStartersPerStudent+e.config.MaxDessertsPerStudent)
+	remaining := wanted
+	take := func(target *[]Dish, choices []string, count, limit int) {
+		dishes := e.stock.takeSides(choices, min(count, limit-len(*target), remaining))
+		*target = append(*target, dishes...)
+		remaining -= len(dishes)
+	}
+	take(&meal.Starters, student.plan.starterChoices, profile.StartersWanted, e.config.MaxStartersPerStudent)
+	take(&meal.Desserts, student.plan.dessertChoices, profile.DessertsWanted, e.config.MaxDessertsPerStudent)
+	take(&meal.Starters, student.plan.starterChoices, remaining, e.config.MaxStartersPerStudent)
+	take(&meal.Desserts, student.plan.dessertChoices, remaining, e.config.MaxDessertsPerStudent)
+	return remaining
 }
 
 func (e *engine) advanceSelfService(step time.Duration) {

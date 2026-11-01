@@ -100,7 +100,7 @@ func TestSessionCloseReturnsReservationAndIsIdempotent(t *testing.T) {
 	session.Close()
 	session.Close()
 	for _, stock := range session.Snapshot().Stock {
-		if stock.Reserved != 0 || stock.Remaining+stock.Taken != stock.Dish.Portions {
+		if stock.Reserved != 0 || stock.Remaining+stock.Taken != stock.Dish.Portions+stock.Replenished {
 			t.Fatal("关闭窗口必须释放预留库存")
 		}
 	}
