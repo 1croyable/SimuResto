@@ -5,6 +5,8 @@
 *.so
 *.dylib
 /simuresto
+# Keep the source directory on case-insensitive filesystems.
+!/SimuResto/
 /simuresto-gui
 /simuresto-perf
 /bin/
