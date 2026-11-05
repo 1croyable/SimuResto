@@ -19,7 +19,7 @@ type Region struct {
 // the engine updates it and the client draws it.
 type Environment struct {
 	Settings          Settings
-	TimePassed        time.Duration
+	TimePassed        time.Duration // Total simulated time since starting
 	Paused            bool
 	
 	Roads             []Region

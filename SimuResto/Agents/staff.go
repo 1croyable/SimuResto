@@ -5,5 +5,5 @@ import "time"
 type Staff struct {
 	ID          int
 	Role        Role
-	ServiceTime time.Duration
+	ServiceTime time.Duration // Time the staff still needs to finish serving
 }

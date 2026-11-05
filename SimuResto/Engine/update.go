@@ -12,14 +12,14 @@ func Step(world *environment.Environment, dt time.Duration) {
 	if world.Paused || dt <= 0 {
 		return
 	}
-	
+
 	start := world.TimePassed
 	world.TimePassed += dt
 
 	if world.TimePassed <= world.Student.Student.ArrivalTime {
 		return
 	}
-	
+
 	if start < world.Student.Student.ArrivalTime {
 		dt = world.TimePassed - world.Student.Student.ArrivalTime
 	}
@@ -49,6 +49,7 @@ func Step(world *environment.Environment, dt time.Duration) {
 	}
 }
 
+// walk uses part or all of dt for movement and returns the time left for serving.
 func walk(world *environment.Environment, dt time.Duration) time.Duration {
 	student := &world.Student
 
@@ -56,11 +57,11 @@ func walk(world *environment.Environment, dt time.Duration) time.Duration {
 		target := world.Route[student.NextWaypoint]
 		dx, dy := target.X-student.Position.X, target.Y-student.Position.Y
 		distance := math.Hypot(dx, dy)
-		travelTime := time.Duration(
-			math.Round(distance / world.Settings.WalkingSpeed * float64(time.Second))
-		)
+		// Time needed to reach the next route point
+		travelTime := time.Duration(math.Round(distance / world.Settings.WalkingSpeed * float64(time.Second)))
 
 		if travelTime > dt {
+			// fraction is the share of the remaining segment covered this step, not a duration.
 			fraction := world.Settings.WalkingSpeed * dt.Seconds() / distance
 			student.Position.X += dx * fraction
 			student.Position.Y += dy * fraction
@@ -71,6 +72,6 @@ func walk(world *environment.Environment, dt time.Duration) time.Duration {
 		student.NextWaypoint++
 		dt -= travelTime
 	}
-	
+
 	return dt
 }
