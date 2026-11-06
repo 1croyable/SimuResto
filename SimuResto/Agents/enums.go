@@ -1,12 +1,5 @@
 package agents
 
-type Preference string
-
-const (
-	Vegetarian    Preference = "vegetarian"
-	MeatPreferred Preference = "meat_preferred"
-)
-
 type Course string
 
 const (

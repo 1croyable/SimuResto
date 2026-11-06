@@ -94,7 +94,7 @@ func New(settings Settings) *Environment {
 	}
 
 	world.Student = agents.StudentState{
-		Student:  agents.Student{ID: 1, Preference: agents.Vegetarian},
+		Student:  agents.StudentData{ID: 1},
 		Position: world.Route[0], NextWaypoint: 1, Status: agents.Walking,
 	}
 	return world

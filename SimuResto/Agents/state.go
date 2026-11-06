@@ -22,7 +22,7 @@ const (
 
 // StudentState holds properties that change during a simulation.
 type StudentState struct {
-	Student         Student
+	Student         StudentData
 	Position        Point
 	NextWaypoint    int
 	Status          StudentStatus
