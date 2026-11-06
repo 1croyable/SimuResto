@@ -8,6 +8,7 @@ type Settings struct {
 	WalkingSpeed    float64 // map units in one simulated second
 	ServiceTime     time.Duration
 	PaymentTime     time.Duration
+	DiningTime      time.Duration
 }
 
 func DefaultSettings() Settings {
@@ -17,5 +18,6 @@ func DefaultSettings() Settings {
 		WalkingSpeed:    180,
 		ServiceTime:     2 * time.Second,
 		PaymentTime:     4 * time.Second,
+		DiningTime:      5 * time.Second,
 	}
 }

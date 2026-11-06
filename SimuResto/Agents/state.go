@@ -15,16 +15,19 @@ const (
 	Paying           StudentStatus = "paying"
 	WalkingToDining  StudentStatus = "walking to dining"
 	Dining           StudentStatus = "dining"
+	WalkingToTrash   StudentStatus = "walking to waste station"
+	WalkingToExit    StudentStatus = "walking to exit"
 	Finished         StudentStatus = "finished"
 )
 
 // StudentState holds properties that change during a simulation.
 type StudentState struct {
-	Student      Student
-	Position     Point
-	NextWaypoint int
-	Status       StudentStatus
-	Meal         Meal
+	Student         Student
+	Position        Point
+	NextWaypoint    int
+	Status          StudentStatus
+	Meal            Meal
+	RemainingDining time.Duration
 }
 
 type StaffState struct {

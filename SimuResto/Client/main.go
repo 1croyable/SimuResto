@@ -11,6 +11,7 @@ import (
 	environment "simuresto/SimuResto/Environment"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
@@ -58,19 +59,21 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	roadColor := color.RGBA{R: 96, G: 96, B: 96, A: 255}
 	foodColor := color.RGBA{R: 224, G: 224, B: 224, A: 255}
 
-	// Food region sits below the lower road.
-	food := g.World.FoodRegion
-	vector.FillRect(screen, food.X, food.Y, food.Width, food.Height, foodColor, false)
+	vector.FillRect(screen, g.World.FoodRegion.X, g.World.FoodRegion.Y, g.World.FoodRegion.Width, g.World.FoodRegion.Height, foodColor, false)
+	vector.FillRect(screen, g.World.CashierRegion.X, g.World.CashierRegion.Y, g.World.CashierRegion.Width, g.World.CashierRegion.Height, foodColor, false)
+	vector.FillRect(screen, g.World.FoodRegion.X, g.World.FoodRegion.Y, g.World.FoodRegion.Width, g.World.FoodRegion.Height, foodColor, false)
 
-	cashier := g.World.CashierRegion
-	vector.FillRect(screen, cashier.X, cashier.Y, cashier.Width, cashier.Height, foodColor, false)
+	for _, area := range g.World.DiningAreas {
+		vector.FillRect(screen, area.Region.X, area.Region.Y, area.Region.Width, area.Region.Height, color.RGBA{R: 224, G: 234, B: 228, A: 255}, false)
+	}
 
-	dining := g.World.DiningRegion
-	vector.FillRect(screen, dining.X, dining.Y, dining.Width, dining.Height, foodColor, false)
+	vector.FillRect(screen, g.World.WasteRegion.X, g.World.WasteRegion.Y, g.World.WasteRegion.Width, g.World.WasteRegion.Height, color.RGBA{R: 237, G: 225, B: 210, A: 255}, false)
 
 	for _, road := range g.World.Roads {
 		vector.FillRect(screen, road.X, road.Y, road.Width, road.Height, roadColor, false)
 	}
+
+	ebitenutil.DebugPrintAt(screen, "Exit >", environment.Width-58, 512)
 
 	cook := g.World.Cook.Position
 	vector.FillCircle(screen, float32(cook.X), float32(cook.Y), 15,
@@ -84,10 +87,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	register := g.World.Cashier.Position
 	vector.FillCircle(screen, float32(register.X), float32(register.Y), 15, cashierColor, true)
 
-	if g.World.TimePassed >= student.Student.ArrivalTime {
+	if g.World.TimePassed >= student.Student.ArrivalTime && student.Status != agents.Finished {
 		vector.FillCircle(screen, float32(student.Position.X), float32(student.Position.Y), 12,
 			color.RGBA{R: 65, G: 140, B: 220, A: 255}, true)
-		if student.Meal.Main != nil {
+		if student.Meal.Main != nil && student.Status != agents.WalkingToExit {
 			vector.FillCircle(screen, float32(student.Position.X)+17, float32(student.Position.Y), 6,
 				color.RGBA{R: 90, G: 190, B: 90, A: 255}, true)
 		}

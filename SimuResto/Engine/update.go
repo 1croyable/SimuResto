@@ -66,15 +66,45 @@ func Step(world *environment.Environment, dt time.Duration) {
 			student.Status = agents.WalkingToDining
 			student.NextWaypoint = 0
 		case agents.WalkingToDining:
-			walk(world, world.DiningRoute, dt)
-			if student.NextWaypoint == len(world.DiningRoute) {
-				student.Status = agents.Dining
+			area := diningArea(world)
+			dt = walk(world, area.Route, dt)
+			if student.NextWaypoint < len(area.Route) {
+				return
+			}
+			student.Status = agents.Dining
+			student.RemainingDining = world.Settings.DiningTime
+		case agents.Dining:
+			elapsed := min(dt, student.RemainingDining)
+			dt -= elapsed
+			student.RemainingDining -= elapsed
+			if student.RemainingDining > 0 {
+				return
+			}
+			student.Status = agents.WalkingToTrash
+			student.NextWaypoint = 0
+		case agents.WalkingToTrash:
+			area := diningArea(world)
+			dt = walk(world, area.CleanupRoute, dt)
+			if student.NextWaypoint < len(area.CleanupRoute) {
+				return
+			}
+			student.Status = agents.WalkingToExit
+			student.NextWaypoint = 0
+		case agents.WalkingToExit:
+			walk(world, world.ExitRoute, dt)
+			if student.NextWaypoint == len(world.ExitRoute) {
+				student.Status = agents.Finished
 			}
 			return
 		default:
 			return
 		}
 	}
+}
+
+func diningArea(world *environment.Environment) environment.DiningArea {
+	index := (max(1, world.Student.Student.ID) - 1) % len(world.DiningAreas)
+	return world.DiningAreas[index]
 }
 
 // walk uses part or all of dt for movement and returns the time left.
