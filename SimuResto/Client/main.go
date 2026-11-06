@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	agents "simuresto/SimuResto/Agents"
 	engine "simuresto/SimuResto/Engine"
 	environment "simuresto/SimuResto/Environment"
 
@@ -59,21 +60,35 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Food region sits below the lower road.
 	food := g.World.FoodRegion
-	vector.DrawFilledRect(screen, food.X, food.Y, food.Width, food.Height, foodColor, false)
+	vector.FillRect(screen, food.X, food.Y, food.Width, food.Height, foodColor, false)
 
-	// Route: upper-right entrance, left turn, then right toward the food region.
+	cashier := g.World.CashierRegion
+	vector.FillRect(screen, cashier.X, cashier.Y, cashier.Width, cashier.Height, foodColor, false)
+
+	dining := g.World.DiningRegion
+	vector.FillRect(screen, dining.X, dining.Y, dining.Width, dining.Height, foodColor, false)
+
 	for _, road := range g.World.Roads {
-		vector.DrawFilledRect(screen, road.X, road.Y, road.Width, road.Height, roadColor, false)
+		vector.FillRect(screen, road.X, road.Y, road.Width, road.Height, roadColor, false)
 	}
+
 	cook := g.World.Cook.Position
-	vector.DrawFilledCircle(screen, float32(cook.X), float32(cook.Y), 15,
+	vector.FillCircle(screen, float32(cook.X), float32(cook.Y), 15,
 		color.RGBA{R: 225, G: 140, B: 45, A: 255}, true)
 	student := g.World.Student
+	cashierColor := color.RGBA{R: 120, G: 120, B: 120, A: 255}
+	if student.Status == agents.Paying {
+		cashierColor = color.RGBA{R: 225, G: 140, B: 45, A: 255}
+	}
+
+	register := g.World.Cashier.Position
+	vector.FillCircle(screen, float32(register.X), float32(register.Y), 15, cashierColor, true)
+
 	if g.World.TimePassed >= student.Student.ArrivalTime {
-		vector.DrawFilledCircle(screen, float32(student.Position.X), float32(student.Position.Y), 12,
+		vector.FillCircle(screen, float32(student.Position.X), float32(student.Position.Y), 12,
 			color.RGBA{R: 65, G: 140, B: 220, A: 255}, true)
 		if student.Meal.Main != nil {
-			vector.DrawFilledCircle(screen, float32(student.Position.X)+17, float32(student.Position.Y), 6,
+			vector.FillCircle(screen, float32(student.Position.X)+17, float32(student.Position.Y), 6,
 				color.RGBA{R: 90, G: 190, B: 90, A: 255}, true)
 		}
 	}
@@ -90,7 +105,7 @@ func main() {
 	ebiten.SetWindowTitle("SimuResto")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	ebiten.SetTPS(settings.TicksPerSecond)
-	ebiten.SetFPSMode(ebiten.FPSModeVsyncOffMaximum)
+	ebiten.SetVsyncEnabled(false)
 	if err := ebiten.RunGame(&Game{World: world}); err != nil {
 		log.Fatal(err)
 	}

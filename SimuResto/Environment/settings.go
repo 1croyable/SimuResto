@@ -7,6 +7,7 @@ type Settings struct {
 	TicksPerSecond  int
 	WalkingSpeed    float64 // map units in one simulated second
 	ServiceTime     time.Duration
+	PaymentTime     time.Duration
 }
 
 func DefaultSettings() Settings {
@@ -15,5 +16,6 @@ func DefaultSettings() Settings {
 		TicksPerSecond:  60,
 		WalkingSpeed:    180,
 		ServiceTime:     2 * time.Second,
+		PaymentTime:     4 * time.Second,
 	}
 }

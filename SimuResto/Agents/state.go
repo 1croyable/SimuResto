@@ -9,9 +9,13 @@ type Point struct {
 type StudentStatus string
 
 const (
-	Walking StudentStatus = "walking"
-	Serving StudentStatus = "receiving a dish"
-	Served  StudentStatus = "has a dish"
+	Walking          StudentStatus = "walking"
+	Serving          StudentStatus = "receiving a dish"
+	WalkingToCashier StudentStatus = "walking to checkout"
+	Paying           StudentStatus = "paying"
+	WalkingToDining  StudentStatus = "walking to dining"
+	Dining           StudentStatus = "dining"
+	Finished         StudentStatus = "finished"
 )
 
 // StudentState holds properties that change during a simulation.

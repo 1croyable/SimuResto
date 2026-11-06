@@ -24,37 +24,65 @@ func Step(world *environment.Environment, dt time.Duration) {
 		dt = world.TimePassed - world.Student.Student.ArrivalTime
 	}
 
-	if world.Student.Status == agents.Walking {
-		// student walking
-		dt = walk(world, dt)
-
-		// switch to serving if the student has reached the counter
-		if world.Student.NextWaypoint == len(world.Route) {
-			world.Student.Status = agents.Serving
+	student := &world.Student
+	for {
+		switch student.Status {
+		case agents.Walking:
+			dt = walk(world, world.Route, dt)
+			if student.NextWaypoint < len(world.Route) {
+				return
+			}
+			student.Status = agents.Serving
 			world.Cook.RemainingService = world.Cook.Staff.ServiceTime
-		}
-	}
-
-	if world.Student.Status == agents.Serving && world.RemainingPortions > 0 {
-		// student being served
-		world.Cook.RemainingService -= min(dt, world.Cook.RemainingService)
-
-		// transfer the dish to the student
-		if world.Cook.RemainingService == 0 {
+		case agents.Serving:
+			if world.RemainingPortions <= 0 {
+				return
+			}
+			elapsed := min(dt, world.Cook.RemainingService)
+			dt -= elapsed
+			world.Cook.RemainingService -= elapsed
+			if world.Cook.RemainingService > 0 {
+				return
+			}
 			dish := world.Dish
-			world.Student.Meal.Main = &dish
+			student.Meal.Main = &dish
 			world.RemainingPortions--
-			world.Student.Status = agents.Served
+			student.Status = agents.WalkingToCashier
+			student.NextWaypoint = 0
+		case agents.WalkingToCashier:
+			dt = walk(world, world.CheckoutRoute, dt)
+			if student.NextWaypoint < len(world.CheckoutRoute) {
+				return
+			}
+			student.Status = agents.Paying
+			world.Cashier.RemainingService = world.Cashier.Staff.ServiceTime
+		case agents.Paying:
+			elapsed := min(dt, world.Cashier.RemainingService)
+			dt -= elapsed
+			world.Cashier.RemainingService -= elapsed
+			if world.Cashier.RemainingService > 0 {
+				return
+			}
+			student.Status = agents.WalkingToDining
+			student.NextWaypoint = 0
+		case agents.WalkingToDining:
+			walk(world, world.DiningRoute, dt)
+			if student.NextWaypoint == len(world.DiningRoute) {
+				student.Status = agents.Dining
+			}
+			return
+		default:
+			return
 		}
 	}
 }
 
-// walk uses part or all of dt for movement and returns the time left for serving.
-func walk(world *environment.Environment, dt time.Duration) time.Duration {
+// walk uses part or all of dt for movement and returns the time left.
+func walk(world *environment.Environment, route []agents.Point, dt time.Duration) time.Duration {
 	student := &world.Student
 
-	for student.NextWaypoint < len(world.Route) {
-		target := world.Route[student.NextWaypoint]
+	for student.NextWaypoint < len(route) {
+		target := route[student.NextWaypoint]
 		dx, dy := target.X-student.Position.X, target.Y-student.Position.Y
 		distance := math.Hypot(dx, dy)
 		// Time needed to reach the next route point
