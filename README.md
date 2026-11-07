@@ -6,7 +6,7 @@
 
 ## 交付与依赖下载
 
-本项目模块名为 `simuresto`，内部使用 `simuresto/simulation`、`simuresto/frontend` 导入本地代码，不依赖私有 GitHub 仓库。提交或压缩项目时保留 `go.mod`、`go.sum`、`cmd/`、`frontend/` 和 `simulation/`。第三方依赖不随项目提交，由 Go Modules 在首次构建时自动下载并缓存。
+本项目模块名为 `simuresto`，内部使用 `simuresto/SimuResto/Engine`、`simuresto/SimuResto/Client` 导入本地代码，不依赖私有 GitHub 仓库。提交或压缩项目时保留 `go.mod`、`go.sum`、`cmd/` 和 `SimuResto/`。第三方依赖不随项目提交，由 Go Modules 在首次构建时自动下载并缓存。
 
 老师在 Windows 上安装 Go 1.27 后，在项目根目录执行：
 
@@ -22,7 +22,7 @@ Go 1.27 编译器仍需预先安装；其他操作系统可能还需要 Ebitengi
 
 ## 依赖来源
 
-界面控件在 `frontend/` 中实现，没有额外引入 UI 控件库。依赖版本固定在 `go.mod`，校验值记录在 `go.sum`；没有使用自定义 `replace` 或来源不明的二进制包。
+界面控件在 `SimuResto/Client/` 中实现，没有额外引入 UI 控件库。依赖版本固定在 `go.mod`，校验值记录在 `go.sum`；没有使用自定义 `replace` 或来源不明的二进制包。
 
 | 依赖 | 来源与用途 |
 |---|---|
@@ -45,7 +45,7 @@ go run ./cmd/simuresto -gui -students 120 -cashiers 1 -speed 2
 go run ./cmd/simuresto -gui -autostart -paused
 ```
 
-启动后先进入设置页，点击数值可以直接输入，也可以用 `+ / −` 调整，最后点击“开始模拟”。参数分为“人流与队列”“服务与库存”“行为与时钟”“菜品满意度”四页，覆盖学生人数、到达间隔、随机种子、各区容量、人员数量、服务耗时、每日库存、等待扣分、配菜上限、播放速度，以及主菜、前菜、甜点的满意度权重。开始前会检查数值范围及室外扣分规则；设置页不运行智能体。`-autostart` 可以跳过设置页，直接采用命令行参数。
+启动后先进入设置页，点击数值可以直接输入，也可以用 `+ / −` 调整，最后点击“开始模拟”。参数分为“人流与队列”“服务与库存”“行为与时钟”“菜品满意度”“主菜备餐”五页，覆盖学生人数、到达间隔、随机种子、各区容量、人员数量、服务耗时、每日库存、等待扣分、配菜上限、播放速度，以及主菜、前菜、甜点的满意度权重。开始前会检查数值范围及室外扣分规则；设置页不运行智能体。`-autostart` 可以跳过设置页，直接采用命令行参数。
 
 ![开始前设置](docs/images/setup-preview.png)
 
@@ -104,11 +104,11 @@ go run ./cmd/simuresto -help
 - **满意度与放弃**：室内及服务区域每真实等待一秒扣 0.08，室外扣 0.30；移动、实际自取、打饭和付款的服务时长不计为等待。整餐按个人菜品评分加权，以 50 分为中性点，默认主菜 : 前菜 : 甜点为 `2:1:1`。替换后仍缺少一份期望配菜扣 5 分，计入整餐的总变化；所有餐品影响合计最多加 50 分或扣 50 分，等待扣分另计。主菜有无限兜底，不再有主菜缺货扣分；也没有额外的偏好奖励或类别奖励。学生满意度始终限制在 0–100。
 - **耐心**：仅在领取托盘前（室内外排队）因累计等待达到耐心值或满意度降至 0 而离队。进入自助区后继续完成取餐和付款。使用兜底主菜时记录 `main_substituted` 事件，配菜不足仍记录 `food_unavailable`。吞吐量表示完成付款的人数；已拿到主菜、但在付款前被取消的学生不计入完成数。
 
-自助取餐默认耗时 4 秒，主菜 8 秒，付款 4 秒，可分别用 `-self-time`、`-main-time`、`-payment-time` 调整。其他行为参数以及任意菜品列表可通过 Go API 的 `simulation.Config` 设置。
+自助取餐默认耗时 4 秒，主菜 8 秒，付款 4 秒，可分别用 `-self-time`、`-main-time`、`-payment-time` 调整。其他行为参数以及任意菜品列表可通过 Go API 的 `environment.Config` 设置。
 
 ## 菜单、满意度与选菜概率
 
-默认菜单定义在 `simulation/menu.go` 的 `DefaultMenu()` 中，模拟使用 `Config.Menu`，可以替换为自定义菜单。每个 `Dish` 的 `SatisfactionScore float32` 是 0–100 的原始菜品评分。先根据主菜是否符合荤素偏好得到个人评分，再以 50 分为中性点：低于 50 扣分，高于 50 加分。菜品评分和学生当前满意度是两个不同的数值。
+默认菜单定义在 `SimuResto/Environment/menu.go` 的 `DefaultMenu()` 中，模拟使用 `Config.Menu`，可以替换为自定义菜单。每个 `Dish` 的 `SatisfactionScore float32` 是 0–100 的原始菜品评分。先根据主菜是否符合荤素偏好得到个人评分，再以 50 分为中性点：低于 50 扣分，高于 50 加分。菜品评分和学生当前满意度是两个不同的数值。
 
 `Config.SatisfactionWeights` 使用 `CourseWeights{Main: 2, Starter: 1, Dessert: 1}`。每一份实际领取的菜分别计权重，未领取的类别不计入分母：
 
@@ -139,20 +139,30 @@ go run ./cmd/simuresto -gui -main-weight 2 -starter-weight 1 -dessert-weight 1
 | 前菜 | Chou rouge | 红甘蓝沙拉 | 40 | 23 |
 | 前菜 | Salade de pois chiche | 鹰嘴豆沙拉 | 65 | 22 |
 | 前菜 | Salade de riz au thon | 金枪鱼米饭沙拉 | 75 | 22 |
-| 素食主菜 | Chili sin carne | 无肉辣豆炖菜 | 85 | 14 |
-| 素食主菜 | Omelette | 法式煎蛋 | 70 | 13 |
-| 素食主菜 | Crumble courgette et parmesan | 西葫芦帕尔马干酪酥烤 | 85 | 13 |
-| 荤食主菜 | Sauté de dinde tandoori | 坦都里风味炒火鸡肉 | 90 | 20 |
-| 荤食主菜 | Cuisse de poulet | 鸡腿 | 90 | 20 |
-| 荤食主菜 | Poisson pané au fromage | 奶酪裹粉鱼排 | 85 | 20 |
+| 素食主菜 | — | 米饭 + 普罗旺斯炖菜 + 植物汉堡饼 | 69.17 | 14 |
+| 素食主菜 | — | 意面 + 炒四季豆 + 植物鸡块 | 72.5 | 13 |
+| 素食主菜 | — | Couscous + 炖胡萝卜 + 煎豆腐 | 39.17 | 13 |
+| 荤食主菜 | — | 米饭 + 普罗旺斯炖菜 + 烤鸡腿 | 79.17 | 20 |
+| 荤食主菜 | — | 土豆泥 + 清蒸西兰花 + 鱼排 | 71.67 | 20 |
+| 荤食主菜 | — | 意面 + 炒四季豆 + 牛肉汉堡饼 | 77.5 | 20 |
 | 甜点 | Fruits de saison | 时令水果 | 50 | 23 |
 | 甜点 | Yaourts variés | 什锦口味酸奶 | 55 | 23 |
 | 甜点 | Compote | 水果泥 | 65 | 22 |
 | 甜点 | Brownie | 巧克力布朗尼 | 80 | 22 |
 
+主菜备餐页可添加、删除多个组合，点击食材切换选择，点击评分和份数直接输入。每个组合由主食、素菜、荤菜位置（可选择植物肉）组成，默认食材与评分位于 `SimuResto/Environment/main_components.go`。每行可单独设置 0–100 的食材评分与备餐份数。修改“服务与库存”页的素食或荤食主菜总量会均分该类组合，直接在备餐页设置的逐项份数则保留。重新打开设置会保留上一轮配方，恢复默认会恢复六种默认组合。
+
+```text
+主菜评分 = 50 + [2×(主食评分−50) + (素菜评分−50) + 3×(荤菜评分−50)] / 6
+```
+
+例如主食 60、素菜 30、荤菜 90，最终主菜评分为 70。这个结果作为主菜的原始评分，继续参与偏好惩罚、softmax 选菜和整餐结算。内部 2:1:3 是拼装权重，外部主菜、前菜、甜点仍使用独立可调的整餐权重。植物肉按实际成分归为素食，肉食倾向学生选到它时仍沿用素食主菜的偏好惩罚。
+
+每个预制组合拥有独立 ID 和库存，一次领取消耗一份完整组合。零份数组合不会进入普通选菜候选，但仍可成为最低分素食兜底。Go API 可通过 `agents.NewComposedMain` 创建配方并放入 `Config.Menu`，运行前会校验三部分并重新计算分数和饮食分类。直接填写评分的旧菜品仍可使用。
+
 每名学生有独立的 `Temperature float32`，自动生成学生时默认为 `1`。正温度下，选菜相当于先计算 `probs = softmax(logits / temperature)`，再按概率抽取一道菜；其中 `logits = ln(1 + 个人菜品评分)`。Go 实现先减去最大 logit，避免指数溢出，再使用随机数和累积权重抽选，数学上与归一化后抽样等价。
 
-温度为 `0` 时直接选择个人评分最高的菜，同分时按菜单顺序选择；`0 < T < 1` 更偏向高分菜，`T > 1` 更随机，温度非常大时接近均匀分布。温度必须有限且非负。直接构造 `Student{}` 时，未填写的温度为 `0`；要使用默认采样行为应填写 `Temperature: simulation.DefaultTemperature`。Go API 可逐人设置不同温度；前端“菜品满意度”页的“学生选菜温度”统一设置本轮所有学生，支持 0–10，点击学生可查看个人温度。
+温度为 `0` 时直接选择个人评分最高的菜，同分时按菜单顺序选择；`0 < T < 1` 更偏向高分菜，`T > 1` 更随机，温度非常大时接近均匀分布。温度必须有限且非负。直接构造 `Student{}` 时，未填写的温度为 `0`；要使用默认采样行为应填写 `Temperature: agents.DefaultTemperature`。Go API 可逐人设置不同温度；前端“菜品满意度”页的“学生选菜温度”统一设置本轮所有学生，支持 0–10，点击学生可查看个人温度。
 
 ```powershell
 go run ./cmd/simuresto -gui -temperature 0.5
@@ -162,7 +172,7 @@ go run ./cmd/simuresto -gui -temperature 0.5
 
 每名学生使用独立随机源，每次实际领取一份菜品时，先读取当前库存并筛选，再按权重直接抽取一个 ID，随即扣除或预留库存。没有预先生成的候选顺序，普通时钟更新也不会触发抽选；拿第二份配菜时会重新筛选、重新抽选，仍有库存的同一道菜可以再次被选中。协调器串行处理每次选菜和扣库存，避免多名学生抢到同一份库存；相同种子和配置仍可复现结果。
 
-素食学生排除含肉菜品；肉食学生优先在有库存的肉类主菜中抽选，肉类全部缺货后才在素食库存中抽选；所有常规主菜都无库存后，才启用最低评分素食的自动补充。默认菜单的兜底菜是 70 分的 `Omelette`，肉食倾向学生对它的个人评分为 45。每人只领取一份主菜。
+素食学生排除含肉菜品；肉食学生优先在有库存的肉类主菜中抽选，肉类全部缺货后才在素食库存中抽选；所有常规主菜都无库存后，才启用最低评分素食的自动补充。默认菜单的兜底菜是约 39.17 分的 Couscous + 炖胡萝卜 + 煎豆腐组合，肉食倾向学生对它的个人评分约为 14.17。每人只领取一份主菜。
 
 `-starters`、`-desserts`、`-vegetarian-mains`、`-meat-mains` 表示各组的初始预制库存，平均分配到该组菜品，余数按菜单顺序分配。默认总量仍分别是 90、90、40、60。兜底主菜按需要自动补充，`Stock.Replenished` 记录额外份数，库存满足 `Remaining + Reserved + Taken = Dish.Portions + Replenished`。前端显示有限的预备餐品数量和“兜底主菜不限量”；命令行及 JSON 同时记录补充份数。
 
@@ -181,39 +191,24 @@ go run ./cmd/simuresto -gui -temperature 0.5
 ## 代码结构与验证
 
 ```text
-cmd/simuresto/       唯一 main 入口；-gui 启动窗口，默认运行命令行
-frontend/           平面图、圆点路径、控制按钮、中文字体和高 DPI 绘制
-simulation/
-  enums.go          饮食倾向、菜品类别、区域、生命周期、信号、岗位枚举
-  model.go          学生、工作人员、菜品、库存记录与餐盘
-  config.go         默认参数，按时钟、服务、领取限额、满意度分组
-  menu.go           默认每日菜单及每种菜品的百分制评分
-  choice.go         从当前可用菜品中按个人评分直接抽取一份
-  validation.go     配置及输入校验
-  student_generator.go  独立的学生生成器，保存随机种子和固定到达间隔
-  queue.go          有容量限制的 FIFO
-  simulation.go     命令行 Run 入口，连续推进会话
-  game.go           可逐步推进的模拟，供命令行和图形前端共用
-  snapshot.go       独立的状态副本，包含区域队列和工作人员任务
-  engine.go         协调器状态、初始化、goroutine 启动和退出
-  student_agent.go  学生观察、实时选菜、独立随机源、离队决策及 channel 通信
-  staff_agent.go    工作人员任务、剩余服务时间及 channel 通信
-  movement.go       入场、区域转移、排队回堵
-  self_service.go   自助领取与取餐耗时
-  staff_service.go  派单、打饭与付款完成处理
-  inventory.go      库存领取、预留、交付与归还
-  satisfaction.go   等待计时及满意度变化
-  events.go         事件结构与记录
-  report.go         结果结构及指标汇总
+cmd/simuresto/       唯一 main 入口，支持命令行和 -gui
+SimuResto/
+  Agents/           学生、工作人员、菜品模型，共享枚举和学生生成器
+  Environment/      模拟配置、参数校验、菜单和容量队列
+  Engine/           Game、模拟推进、智能体通信、库存、满意度与统计
+  Client/           Ebitengine 界面、设置页、圆点动画与状态显示
+docs/reference/ui_1/ 队友原型参考代码，保留用餐、倒餐、离场流程
 ```
 
-这些文件属于同一个 `simulation` 包，按职责划分，业务调用方仍使用 `simulation.Run`。枚举使用 Go 的具名类型和常量，保留字符串值，便于阅读日志和 JSON；`Status` 表示学生生命周期，`Area` 表示位置，`Signal` 表示发生的事件。`ServiceRoute()` 返回路线副本，避免外部修改服务顺序。
+模块依赖方向为 Client → Engine → Environment → Agents，Client 和 Engine 也直接使用 Agents 的数据类型。前端通过 `engine.NewGame`、`Game.Step` 和 `Game.Snapshot` 连接模拟，命令行通过 `engine.Run` 连续推进。`environment.Config.Validate` 负责跨模块输入校验。枚举采用具名类型和字符串常量。
+
+区域移动即时完成，前端圆点动画只用于显示。付款完成后学生记为 `Completed`。队友的原型以 `.go.txt` 原文保留在参考目录，供后续接入用餐、倒餐和离场逻辑。
 
 学生由 `StudentGenerator` 独立生成，命令行与前端共用它的 `Generate(count)` 方法。生成器保存 `Seed` 和 `ArrivalInterval`；每次调用重新从种子生成一批学生，ID 从 1 开始，适合新建或重启一轮模拟，不用于同一轮内追加学生。目前仍采用固定到达间隔；生成器只生成资料，入场及 agent 的启动仍由协调器负责。
 
 学生的满意度、满意度参数、观察消息和个人利用率使用 `float32`；时间使用 `time.Duration`，ID 和份数使用 `int`。汇总均值和比例保留 `float64`，满意度先转为 `float64` 再累加，减少统计时额外的舍入误差。单个学生的浮点结果与旧版可能存在微小差异。
 
-推荐阅读顺序：先看 `model.go` 和 `enums.go` 了解有哪些对象与状态，再看 `simulation.go` 的主循环，然后跟进 `student_agent.go`、`movement.go` 和 `staff_service.go`。最后阅读 `inventory.go` 与 `satisfaction.go`，理解一次服务如何改变库存和学生状态。
+推荐阅读顺序：先看 `Agents/model.go` 和 `Agents/enums.go` 了解有哪些对象与状态，再看 `Engine/simulation.go` 的主循环，然后跟进 `student_agent.go`、`movement.go` 和 `staff_service.go`。最后阅读 `inventory.go` 与 `satisfaction.go`，理解一次服务如何改变库存和学生状态。
 
 以一名学生为例：`admit` 接纳学生 → `moveForward` 将其推进自助区 → `startSelfService` 每领一份配菜都让学生 goroutine 从当前可用菜品中抽取 → 自助耗时结束后进入主菜区 → `assignStaff` 让学生抽取并预留一份主菜，无库存则使用兜底 → 工作人员 goroutine 完成任务 → `deliverMain` 交付 → 进入付款区 → 收银完成后离开。`started` 表示本区服务已开始，`ready` 表示本区服务已完成；即使 `ready`，也必须等下一区域有位置才能前进。
 

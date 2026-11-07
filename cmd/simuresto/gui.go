@@ -4,13 +4,13 @@ import (
 	"flag"
 	"time"
 
-	"simuresto/frontend"
-	"simuresto/simulation"
+	client "simuresto/SimuResto/Client"
+	environment "simuresto/SimuResto/Environment"
 )
 
 // 图形模式与命令行共用唯一入口；窗口选项不改变模拟核心。
-func graphicalFlags() *frontend.Options {
-	options := &frontend.Options{}
+func graphicalFlags() *client.Options {
+	options := &client.Options{}
 	flag.Float64Var(&options.Speed, "speed", 4, "GUI: simulated seconds per real second")
 	flag.BoolVar(&options.Paused, "paused", false, "GUI: start with simulation paused")
 	flag.BoolVar(&options.AutoStart, "autostart", false, "GUI: skip setup and start immediately")
@@ -24,7 +24,7 @@ func graphicalFlags() *frontend.Options {
 }
 
 // 仅调整用户没有显式指定的默认值，保留命令行模式的原有行为。
-func applyGraphicalDefaults(config *simulation.Config, count *int) {
+func applyGraphicalDefaults(config *environment.Config, count *int) {
 	specified := make(map[string]bool)
 	flag.Visit(func(f *flag.Flag) { specified[f.Name] = true })
 	if !specified["students"] {

@@ -11,8 +11,10 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"simuresto/frontend"
-	"simuresto/simulation"
+	agents "simuresto/SimuResto/Agents"
+	client "simuresto/SimuResto/Client"
+	engine "simuresto/SimuResto/Engine"
+	environment "simuresto/SimuResto/Environment"
 )
 
 func main() {
@@ -20,12 +22,12 @@ func main() {
 }
 
 func run() int {
-	config := simulation.DefaultConfig()
+	config := environment.DefaultConfig()
 	gui := flag.Bool("gui", false, "open the graphical setup screen")
 	guiOptions := graphicalFlags()
 	count := flag.Int("students", 80, "number of students")
 	seed := flag.Int64("seed", config.Seed, "seed for student profiles and meal choices")
-	temperature := flag.Float64("temperature", float64(simulation.DefaultTemperature), "student choice temperature (0 selects the highest score)")
+	temperature := flag.Float64("temperature", float64(agents.DefaultTemperature), "student choice temperature (0 selects the highest score)")
 	arrivalInterval := flag.Duration("arrival-interval", time.Second, "simulated time between arrivals (0 for a crowd)")
 	jsonOutput := flag.Bool("json", false, "print the complete report as JSON (durations in nanoseconds)")
 	events := flag.Bool("events", false, "print agent interactions before the summary")
@@ -69,14 +71,14 @@ func run() int {
 		applyGraphicalDefaults(&config, count)
 	}
 	config.Seed = *seed
-	config.SatisfactionWeights = simulation.CourseWeights{
+	config.SatisfactionWeights = environment.CourseWeights{
 		Main: float32(*mainWeight), Starter: float32(*starterWeight), Dessert: float32(*dessertWeight),
 	}
-	setMenuPortions(config.Menu, simulation.Starter, true, *starters)
-	setMenuPortions(config.Menu, simulation.Main, true, *vegetarianMains)
-	setMenuPortions(config.Menu, simulation.Main, false, *meatMains)
-	setMenuPortions(config.Menu, simulation.Dessert, true, *desserts)
-	generator := simulation.StudentGenerator{
+	setMenuPortions(config.Menu, agents.Starter, true, *starters)
+	setMenuPortions(config.Menu, agents.Main, true, *vegetarianMains)
+	setMenuPortions(config.Menu, agents.Main, false, *meatMains)
+	setMenuPortions(config.Menu, agents.Dessert, true, *desserts)
+	generator := agents.StudentGenerator{
 		Seed:            *seed,
 		ArrivalInterval: *arrivalInterval,
 	}
@@ -91,7 +93,7 @@ func run() int {
 	if *gui {
 		guiOptions.Config, guiOptions.Students = config, students
 		guiOptions.ArrivalInterval = *arrivalInterval
-		if err := frontend.Run(guiOptions); err != nil {
+		if err := client.Run(guiOptions); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
@@ -99,7 +101,7 @@ func run() int {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	report, err := simulation.Run(ctx, config, students)
+	report, err := engine.Run(ctx, config, students)
 	if err != nil && report.Metrics.AverageWaitByArea == nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
@@ -129,10 +131,10 @@ func run() int {
 
 // 同类菜品平均分配总库存，余数按菜单顺序分配；不依赖菜品所在的下标。
 // 负数原样传入配置校验，避免被整除截断为零。
-func setMenuPortions(menu []simulation.Dish, course simulation.Course, vegetarian bool, total int) {
+func setMenuPortions(menu []agents.Dish, course agents.Course, vegetarian bool, total int) {
 	var indices []int
 	for i, dish := range menu {
-		if dish.Course == course && (course != simulation.Main || dish.Vegetarian == vegetarian) {
+		if dish.Course == course && (course != agents.Main || dish.Vegetarian == vegetarian) {
 			indices = append(indices, i)
 		}
 	}
@@ -148,7 +150,7 @@ func setMenuPortions(menu []simulation.Dish, course simulation.Course, vegetaria
 	}
 }
 
-func printSummary(report simulation.Report) {
+func printSummary(report engine.Report) {
 	metrics := report.Metrics
 	fmt.Printf("Simulated duration: %s\n", report.Duration)
 	fmt.Printf("Students: %d completed, %d abandoned, %d rejected (full), %d cancelled\n",
@@ -158,8 +160,8 @@ func printSummary(report simulation.Report) {
 		100*metrics.AbandonmentRate, metrics.MealsPerMinute)
 	writer := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 	fmt.Fprintln(writer, "AREA\tPEAK OCCUPANCY\tAVERAGE WAIT")
-	for _, area := range []simulation.Area{
-		simulation.Outside, simulation.Inside, simulation.SelfService, simulation.MainService, simulation.Payment,
+	for _, area := range []agents.Area{
+		agents.Outside, agents.Inside, agents.SelfService, agents.MainService, agents.Payment,
 	} {
 		fmt.Fprintf(writer, "%s\t%d\t%s\n", area, report.PeakOccupancy[area], metrics.AverageWaitByArea[area].Round(time.Millisecond))
 	}

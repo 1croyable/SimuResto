@@ -1,0 +1,124 @@
+package client
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	agents "simuresto/SimuResto/Agents"
+	environment "simuresto/SimuResto/Environment"
+)
+
+func settingsGame() *Game {
+	c := environment.DefaultConfig()
+	c.Capacities.Payment, c.Cashiers = 2, 2
+	c.Tick = 250 * time.Millisecond
+	generator := agents.StudentGenerator{Seed: c.Seed, ArrivalInterval: time.Second}
+	students, _ := generator.Generate(100)
+	g := &Game{options: Options{Config: c, Students: students, ArrivalInterval: time.Second}, speed: 4, chinese: true, configuring: true}
+	g.populateSettings()
+	return g
+}
+
+func TestSettingsApplyBeforeStartingAgents(t *testing.T) {
+	g := settingsGame()
+	if g.simulationGame != nil {
+		t.Fatal("设置页不能提前启动模拟")
+	}
+	g.settingValues[studentCount] = "12"
+	g.settingValues[arrivalSeconds] = "0.5"
+	g.settingValues[cashierCount] = "1"
+	g.settingValues[serverCount] = "3"
+	g.settingValues[mainSeconds] = "6.5"
+	g.settingValues[starterStock] = "7"
+	g.settingValues[vegetarianStock] = "5"
+	g.settingValues[meatStock] = "9"
+	g.settingValues[dessertStock] = "11"
+	g.settingValues[playbackSpeed] = "2"
+	g.settingValues[mainWeight] = "3.5"
+	g.settingValues[starterWeight] = "0"
+	g.settingValues[dessertWeight] = "2"
+	g.settingValues[studentTemperature] = "0.3"
+	if err := g.startConfigured(); err != nil {
+		t.Fatal(err)
+	}
+	defer g.Close()
+	if g.configuring || g.simulationGame == nil || len(g.options.Students) != 12 || g.speed != 2 {
+		t.Fatal("开始按钮未应用设置")
+	}
+	if g.options.Config.MainServiceTime != 6500*time.Millisecond || g.options.Config.Cashiers != 1 || g.options.Config.Servers != 3 || g.options.Students[1].ArrivalTime != 500*time.Millisecond {
+		t.Fatal("服务参数或到达间隔错误")
+	}
+	if g.snapshot.Duration != 0 {
+		t.Fatal("开始前不应累计模拟时间")
+	}
+	for _, student := range g.snapshot.Students {
+		if student.Student.Temperature != 0.3 {
+			t.Fatal("开始模拟时应将设置的温度写入每名学生")
+		}
+	}
+	if g.options.Config.SatisfactionWeights != (environment.CourseWeights{Main: 3.5, Starter: 0, Dessert: 2}) {
+		t.Fatal("开始模拟时必须应用界面上的满意度权重")
+	}
+	counts := [4]int{}
+	for _, stock := range g.snapshot.Stock {
+		switch stock.Dish.Course {
+		case agents.Starter:
+			counts[0] += stock.Remaining
+		case agents.Dessert:
+			counts[3] += stock.Remaining
+		case agents.Main:
+			if stock.Dish.Vegetarian {
+				counts[1] += stock.Remaining
+			} else {
+				counts[2] += stock.Remaining
+			}
+		}
+	}
+	if counts != [4]int{7, 5, 9, 11} {
+		t.Fatalf("实际库存没有采用设置：%v", counts)
+	}
+	g.step()
+	old := g.simulationGame
+	g.openSettings()
+	if !g.configuring || g.settingValues[studentCount] != "12" || g.settingValues[mainWeight] != "3.5" || g.settingValues[studentTemperature] != "0.3" {
+		t.Fatal("返回设置应保留上一轮参数")
+	}
+	if done, err := old.Step(context.Background()); !done || !errors.Is(err, context.Canceled) {
+		t.Fatal("返回设置必须结束上一轮智能体")
+	}
+}
+
+func TestInvalidSettingsDoNotStartSimulation(t *testing.T) {
+	for _, change := range []struct {
+		key   settingKey
+		value string
+	}{
+		{studentCount, ""}, {studentCount, "-1"}, {studentCount, "1.5"}, {cashierCount, "3"}, {tickSeconds, "0"}, {starterStock, "-1"}, {outdoorLoss, "0.01"}, {playbackSpeed, "NaN"},
+		{mainWeight, "-1"}, {starterWeight, "NaN"}, {dessertWeight, "11"},
+		{studentTemperature, "-1"}, {studentTemperature, "NaN"}, {studentTemperature, "Inf"},
+	} {
+		g := settingsGame()
+		g.settingValues[change.key] = change.value
+		if err := g.startConfigured(); err == nil {
+			t.Fatalf("错误参数应被拒绝：%v", change)
+		}
+		if g.simulationGame != nil || !g.configuring {
+			t.Fatal("错误参数不得启动后台模拟")
+		}
+	}
+}
+
+func TestSettingsRejectZeroWeightsAndRestoreDefaults(t *testing.T) {
+	g := settingsGame()
+	g.settingValues[mainWeight], g.settingValues[starterWeight], g.settingValues[dessertWeight] = "0", "0", "0"
+	if err := g.startConfigured(); err == nil || g.simulationGame != nil || g.settingsTab != 3 {
+		t.Fatal("权重全零应回到菜品满意度页提示，不能启动智能体")
+	}
+	g.restoreDefaults()
+	if g.settingValues[mainWeight] != "2" || g.settingValues[starterWeight] != "1" || g.settingValues[dessertWeight] != "1" ||
+		g.settingValues[starterLimit] != "2" || g.settingValues[dessertLimit] != "2" || g.settingValues[totalSideLimit] != "2" || g.settingValues[studentTemperature] != "1" {
+		t.Fatal("默认权重应为 2:1:1，配菜每类及合计上限均应为 2")
+	}
+}
