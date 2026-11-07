@@ -35,7 +35,6 @@ func (g *Game) Update() error {
 		return nil
 	}
 
-	// 60 ticks equal one second. Prepare the simulated time to advance the world by.
 	g.tickRemainder += int64(time.Second)
 	rate := int64(g.World.Settings.TicksPerSecond)
 	dt := time.Duration(g.tickRemainder / rate)
@@ -78,20 +77,34 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	cook := g.World.Cook.Position
 	vector.FillCircle(screen, float32(cook.X), float32(cook.Y), 15,
 		color.RGBA{R: 225, G: 140, B: 45, A: 255}, true)
-	student := g.World.Student
 	cashierColor := color.RGBA{R: 120, G: 120, B: 120, A: 255}
-	if student.Status == agents.Paying {
+	if g.World.Cashier.StudentID != 0 {
 		cashierColor = color.RGBA{R: 225, G: 140, B: 45, A: 255}
 	}
 
 	register := g.World.Cashier.Position
 	vector.FillCircle(screen, float32(register.X), float32(register.Y), 15, cashierColor, true)
 
-	if g.World.TimePassed >= student.Student.ArrivalTime && student.Status != agents.Finished {
-		vector.FillCircle(screen, float32(student.Position.X), float32(student.Position.Y), 12,
-			color.RGBA{R: 65, G: 140, B: 220, A: 255}, true)
+	finished, abandoned := 0, 0
+	for _, student := range g.World.Students {
+		if student.Status == agents.Finished {
+			finished++
+			continue
+		}
+		if student.Status == agents.Abandoned {
+			abandoned++
+			continue
+		}
+		if student.Status == agents.Scheduled {
+			continue
+		}
+		fill := color.RGBA{R: 65, G: 140, B: 220, A: 255}
+		if student.Status == agents.Serving || student.Status == agents.Paying {
+			fill = color.RGBA{R: 225, G: 140, B: 45, A: 255}
+		}
+		vector.FillCircle(screen, float32(student.Position.X), float32(student.Position.Y), 6, fill, true)
 		if student.Meal.Main != nil && student.Status != agents.WalkingToExit {
-			vector.FillCircle(screen, float32(student.Position.X)+17, float32(student.Position.Y), 6,
+			vector.FillCircle(screen, float32(student.Position.X)+8, float32(student.Position.Y), 3,
 				color.RGBA{R: 90, G: 190, B: 90, A: 255}, true)
 		}
 	}

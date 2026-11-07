@@ -1,37 +1,35 @@
 package agents
 
-import "time"
+import (
+	"math/rand"
+	"time"
+)
 
 type Point struct {
 	X, Y float64
 }
 
-type StudentStatus string
-
-const (
-	Walking          StudentStatus = "walking"
-	Serving          StudentStatus = "receiving a dish"
-	WalkingToCashier StudentStatus = "walking to checkout"
-	Paying           StudentStatus = "paying"
-	WalkingToDining  StudentStatus = "walking to dining"
-	Dining           StudentStatus = "dining"
-	WalkingToTrash   StudentStatus = "walking to waste station"
-	WalkingToExit    StudentStatus = "walking to exit"
-	Finished         StudentStatus = "finished"
-)
-
 // StudentState holds properties that change during a simulation.
 type StudentState struct {
-	Student         StudentData
-	Position        Point
-	NextWaypoint    int
-	Status          StudentStatus
-	Meal            Meal
-	RemainingDining time.Duration
+	Student           StudentData
+	Position          Point
+	NextWaypoint      int
+	Status            StudentStatus
+	Meal              Meal
+	RemainingDining   time.Duration
+	CounterReleasedAt time.Duration // Simulated time when the student last left a service counter.
+
+	// PositionAlongRoute is measured from the U-shaped route's start in the direction of travel.
+	// Negative values place the student before the route's start.
+	PositionAlongRoute float64
+	QueueWait          time.Duration
+	OrderedDishID      string
+	randomGenerator    *rand.Rand
 }
 
 type StaffState struct {
-	Staff            Staff
-	Position         Point
-	RemainingService time.Duration
+	StudentID       int
+	Staff           StaffData
+	Position        Point
+	ServiceTimeLeft time.Duration
 }

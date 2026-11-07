@@ -2,8 +2,14 @@ package agents
 
 import "time"
 
-type Staff struct {
+type StaffData struct {
 	ID          int
 	Role        Role
-	ServiceTime time.Duration // Time the staff still needs to finish serving
+	ServiceTime time.Duration // Time needed to serve one student.
+}
+
+func (staff *StaffState) AdvanceService(dt time.Duration) time.Duration {
+	busyTime := min(dt, staff.ServiceTimeLeft)
+	staff.ServiceTimeLeft -= busyTime
+	return busyTime
 }
