@@ -76,7 +76,7 @@ func (g *Game) openSettings() {
 func (g *Game) restoreDefaults() {
 	g.options.Config = environment.DefaultConfig()
 	g.speed = environment.DefaultPlaybackSpeed
-	generator := agents.StudentGenerator{Seed: environment.RandomSeed, ArrivalInterval: environment.ArrivalInterval}
+	generator := agents.StudentGenerator{ArrivalInterval: environment.ArrivalInterval}
 	g.options.Students, _ = generator.Generate(environment.DefaultStudentCount)
 	g.populateSettings()
 }
@@ -113,7 +113,7 @@ func (g *Game) startConfigured() error {
 		}
 	}
 	config.Menu = append(config.Menu, mains...)
-	generator := agents.StudentGenerator{Seed: environment.RandomSeed, ArrivalInterval: environment.ArrivalInterval}
+	generator := agents.StudentGenerator{ArrivalInterval: environment.ArrivalInterval}
 	students, err := generator.Generate(int(values[studentCount]))
 	if err != nil {
 		return err

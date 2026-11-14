@@ -56,7 +56,7 @@ func (e *engine) stepStaffService(step time.Duration) {
 		}
 		update := workTick{elapsed: step}
 		if worker.job.fresh {
-			update.start = &assignment{studentID: worker.job.studentID, duration: worker.result.Staff.ServiceTime}
+			update.start = &assignment{studentID: worker.job.studentID}
 			worker.job.fresh = false
 		}
 		worker.agent.in <- update

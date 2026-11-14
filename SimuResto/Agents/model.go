@@ -19,9 +19,8 @@ type Student struct {
 }
 
 type Staff struct {
-	ID          int
-	Role        Role
-	ServiceTime time.Duration
+	ID   int
+	Role Role
 }
 
 type Dish struct {

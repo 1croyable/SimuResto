@@ -2,7 +2,7 @@ package engine
 
 import (
 	"math"
-	"math/rand"
+	"math/rand/v2"
 
 	agents "simuresto/SimuResto/Agents"
 )
@@ -10,7 +10,7 @@ import (
 // weightedChoice 从当前可用的菜品中抽取一份，返回菜品 ID。
 // 将原权重转成 logit = ln(1 + 个人评分)，再使用 softmax(logit / 温度)。
 // 温度为 1 时保持原有概率，为 0 时选择最高分，同分按当前菜单顺序选择。
-func weightedChoice(rng *rand.Rand, dishes []agents.Dish, preference agents.Preference, temperature float32) string {
+func weightedChoice(dishes []agents.Dish, preference agents.Preference, temperature float32) string {
 	// probs = torch.softmax(logits / temperature)
 	if len(dishes) == 0 {
 		return ""
@@ -37,7 +37,7 @@ func weightedChoice(rng *rand.Rand, dishes []agents.Dish, preference agents.Pref
 	}
 
 	// next_token = torch.multinomial(probs, num_samples=1)
-	draw := rng.Float64() * total
+	draw := rand.Float64() * total
 	for i, dish := range dishes {
 		draw -= weights[i]
 		if draw < 0 {

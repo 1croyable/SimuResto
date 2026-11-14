@@ -10,12 +10,12 @@ import (
 )
 
 type studentState struct {
-	result       StudentResult
-	agent        studentAgent
-	started      bool          // 当前区域的服务已经开始。
-	ready        bool          // 当前服务已完成，等待下一区域腾出位置。
-	elapsed      time.Duration // 在自助区已经花费的取餐时间。
-	missingSides int           // 最终缺少的配菜份数，与整餐评分统一结算。
+	result               StudentResult
+	agent                studentAgent
+	started              bool          // 当前区域的服务已经开始。
+	ready                bool          // 当前服务已完成，等待下一区域腾出位置。
+	selfServiceRemaining time.Duration // 当前自助取餐还需要的时间。
+	missingSides         int           // 最终缺少的配菜份数，与整餐评分统一结算。
 }
 
 type job struct {
@@ -89,7 +89,7 @@ func newEngine(config environment.Config, students []agents.Student) *engine {
 		e.agentWG.Add(1)
 		go func() {
 			defer e.agentWG.Done()
-			runStudent(student, environment.RandomSeed, state.agent)
+			runStudent(student, state.agent)
 		}()
 	}
 
@@ -98,9 +98,9 @@ func newEngine(config environment.Config, students []agents.Student) *engine {
 	})
 
 	for i := 0; i < environment.Servers+environment.MaxCashiers; i++ {
-		staff := agents.Staff{ID: i + 1, Role: agents.Server, ServiceTime: environment.MainServiceTime}
+		staff := agents.Staff{ID: i + 1, Role: agents.Server}
 		if i >= environment.Servers {
-			staff.Role, staff.ServiceTime = agents.Cashier, environment.PaymentTime
+			staff.Role = agents.Cashier
 		}
 		state := &staffState{
 			result: StaffResult{Staff: staff},

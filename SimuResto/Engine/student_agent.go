@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"math/rand"
 	"time"
 
 	agents "simuresto/SimuResto/Agents"
@@ -24,16 +23,14 @@ type studentAgent struct {
 	out chan decision
 }
 
-// 每名学生拥有独立 goroutine 和随机源，按实时可用菜品抽取一份。
-func runStudent(student agents.Student, seed int64, agent studentAgent) {
-	studentSeed := int64(uint64(seed) ^ (uint64(student.ID) * 0x9e3779b97f4a7c15))
-	rng := rand.New(rand.NewSource(studentSeed))
+// 每名学生在自己的 goroutine 中，按实时可用菜品随机抽取一份。
+func runStudent(student agents.Student, agent studentAgent) {
 	for state := range agent.in {
 		response := decision{}
 		// 领取托盘后，学生继续完成取餐和付款，不再因耐心耗尽离队。
 		response.leave = state.area.IsWaitingArea() &&
 			(state.waiting >= student.Patience || state.satisfaction <= 0)
-		response.dishID = weightedChoice(rng, state.dishes, student.Preference, student.Temperature)
+		response.dishID = weightedChoice(state.dishes, student.Preference, student.Temperature)
 		agent.out <- response
 	}
 }

@@ -76,21 +76,19 @@ func TestMealSatisfactionUsesCenteredWeightedScores(t *testing.T) {
 	}
 }
 
-func TestMismatchedMainLoses25BeforeWeighting(t *testing.T) {
+func TestMismatchedMainPenaltyIsAppliedBeforeWeighting(t *testing.T) {
 	student := mealStudent()
 	student.Preference = agents.MeatPreferred
-	for _, tc := range []struct {
-		score, want float32
-	}{
-		{80, 52.5}, {50, 37.5}, {25, 25}, {10, 25}, {0, 25},
-	} {
+	for _, score := range []float32{80, 50, 25, 10, 0} {
 		c := neutralMealConfig()
-		c.Menu[0].SatisfactionScore = tc.score
+		c.Menu[0].SatisfactionScore = score
 		result := runMeal(t, c, student)
-		if result.Satisfaction != tc.want {
-			t.Fatalf("主菜评分 %v 减 25 后按 2:1:1 加权，实际 %v，期望 %v", tc.score, result.Satisfaction, tc.want)
+		// 两份中性配菜下，主菜占整餐权重的一半。
+		want := 50 + (max(0, score-environment.PreferenceMismatchPenalty)-50)/2
+		if result.Satisfaction != want {
+			t.Fatalf("主菜评分 %v 减 %v 后按 2:1:1 加权，实际 %v，期望 %v", score, environment.PreferenceMismatchPenalty, result.Satisfaction, want)
 		}
-		if result.Meal.Main.SatisfactionScore != tc.score || c.Menu[0].SatisfactionScore != tc.score {
+		if result.Meal.Main.SatisfactionScore != score || c.Menu[0].SatisfactionScore != score {
 			t.Fatal("个人偏好不应修改公共菜单或餐盘记录的原始评分")
 		}
 	}
@@ -101,8 +99,10 @@ func TestFallbackMainParticipatesInMealScore(t *testing.T) {
 	c.Menu[0].Portions = 0
 	c.Menu[1].SatisfactionScore, c.Menu[2].SatisfactionScore = 60, 80
 	result := runMeal(t, c, mealStudent())
-	if result.Meal.Main.ID != "main" || result.Satisfaction != 60 || result.TotalWait != 0 || result.ExitTime != environment.SelfServiceTime+environment.MainServiceTime+environment.PaymentTime {
-		t.Fatalf("兜底主菜使用固定服务时长，不额外扣主菜缺货分，畅通时也不计行走等待：%+v", result)
+	minimum := environment.MinSelfServiceTime + environment.MinMainServiceTime + environment.MinPaymentTime
+	maximum := environment.MaxSelfServiceTime + environment.MaxMainServiceTime + environment.MaxPaymentTime + 3*c.Tick
+	if result.Meal.Main.ID != "main" || result.Satisfaction != 60 || result.TotalWait != 0 || result.ExitTime < minimum || result.ExitTime > maximum {
+		t.Fatalf("兜底主菜应使用随机服务时长，畅通时不计行走等待：%+v", result)
 	}
 }
 
@@ -139,18 +139,22 @@ func TestFoodEffectIsSettledOnlyOnceAtMainDelivery(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer game.Close()
-	steps := int((environment.SelfServiceTime + environment.MainServiceTime + environment.PaymentTime) / c.Tick)
-	for step := 1; step <= steps; step++ {
-		want := float32(50)
-		if time.Duration(step)*c.Tick >= environment.SelfServiceTime+environment.MainServiceTime {
-			want = 40
-		}
+	maximum := environment.MaxSelfServiceTime + environment.MaxMainServiceTime + environment.MaxPaymentTime + 3*c.Tick
+	for !game.Snapshot().Done && game.engine.now <= maximum {
 		if _, err := game.Step(context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		if got := game.Snapshot().Students[0].Satisfaction; got != want {
-			t.Fatalf("第 %d 步满意度 %v，期望 %v；配菜缺货应随主菜交付统一结算一次", step+1, got, want)
+		result := game.Snapshot().Students[0]
+		want := float32(50)
+		if result.Meal.Main != nil {
+			want = 40
 		}
+		if result.Satisfaction != want {
+			t.Fatalf("满意度 %v，期望 %v；配菜缺货应随主菜交付统一结算一次", result.Satisfaction, want)
+		}
+	}
+	if !game.Snapshot().Done {
+		t.Fatal("学生应在服务耗时上界内完成")
 	}
 }
 
@@ -161,10 +165,10 @@ func TestPersonalDishScoreOnlyAdjustsMismatchedMain(t *testing.T) {
 		vegetarian bool
 		want       float32
 	}{
-		{agents.MeatPreferred, agents.Main, true, 55},
+		{agents.MeatPreferred, agents.Main, true, 80 - environment.PreferenceMismatchPenalty},
 		{agents.MeatPreferred, agents.Main, false, 80},
 		{agents.Vegetarian, agents.Main, true, 80},
-		{agents.Vegetarian, agents.Main, false, 55},
+		{agents.Vegetarian, agents.Main, false, 80 - environment.PreferenceMismatchPenalty},
 		{agents.MeatPreferred, agents.Starter, true, 80},
 		{agents.MeatPreferred, agents.Dessert, true, 80},
 	} {

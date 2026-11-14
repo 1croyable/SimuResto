@@ -11,15 +11,15 @@ import (
 	environment "simuresto/SimuResto/Environment"
 )
 
-func TestGameMatchesContinuousRun(t *testing.T) {
+func TestGameCompletesThroughBothEntryPoints(t *testing.T) {
 	config := environment.DefaultConfig()
 	config.Tick = time.Second
-	generator := agents.StudentGenerator{Seed: environment.RandomSeed, ArrivalInterval: time.Second}
+	generator := agents.StudentGenerator{ArrivalInterval: time.Second}
 	students, err := generator.Generate(90)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := Run(context.Background(), config, students)
+	continuousReport, err := Run(context.Background(), config, students)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,8 +37,17 @@ func TestGameMatchesContinuousRun(t *testing.T) {
 			break
 		}
 	}
-	if !reflect.DeepEqual(want, game.Report()) {
-		t.Fatal("图形前端逐步推进与命令行连续运行必须一致")
+	// 每轮重新随机抽取选菜与耗时，两种入口都应使所有学生进入结束状态。
+	for _, report := range []Report{continuousReport, game.Report()} {
+		metrics := report.Metrics
+		if metrics.Completed+metrics.Abandoned+metrics.Rejected+metrics.Cancelled != len(students) {
+			t.Fatal("连续运行与逐步推进都必须处理完所有学生")
+		}
+		for _, student := range report.Students {
+			if student.Status == agents.Active || student.Status == agents.Scheduled {
+				t.Fatal("结束后不能残留正在服务或尚未入场的学生")
+			}
+		}
 	}
 	if !game.Snapshot().Done {
 		t.Fatal("完成后必须标记结束")
@@ -54,7 +63,7 @@ func TestSnapshotIsIndependentAndReadingDoesNotAdvanceTime(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer game.Close()
-	for range 12 {
+	for game.Snapshot().Students[0].Meal.Main == nil && game.engine.now < environment.MaxSelfServiceTime+environment.MaxMainServiceTime+2*config.Tick {
 		if _, err := game.Step(context.Background()); err != nil {
 			t.Fatal(err)
 		}
@@ -94,12 +103,15 @@ func TestGameCloseReturnsReservationAndIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for range 5 {
-		game.Step(context.Background())
-	}
+	defer game.Close()
 	reserved := 0
-	for _, stock := range game.Snapshot().Stock {
-		reserved += stock.Reserved
+	for reserved == 0 && game.engine.now < environment.MaxSelfServiceTime+2*config.Tick {
+		if _, err := game.Step(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		for _, stock := range game.Snapshot().Stock {
+			reserved += stock.Reserved
+		}
 	}
 	if reserved != 1 {
 		t.Fatal("关闭前应有一份预留主菜")

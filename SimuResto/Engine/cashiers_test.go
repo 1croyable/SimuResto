@@ -28,9 +28,14 @@ func TestCashierCanCloseDuringPaymentAndReopen(t *testing.T) {
 		}
 	}
 	second := game.engine.staff[environment.Servers+1]
-	for second.job == nil && game.engine.now < time.Minute {
-		step()
+	// 直接准备两名待付款学生，保证本测试覆盖两个窗口同时忙碌的情况。
+	game.engine.admit()
+	for _, student := range game.engine.students[:2] {
+		game.engine.queues[student.result.Area].Remove(student.result.Student.ID)
+		game.engine.enter(student, agents.Payment)
 	}
+	game.engine.assignStaff()
+	step()
 	if second.job == nil {
 		t.Fatal("第二个收银窗口应正在付款")
 	}

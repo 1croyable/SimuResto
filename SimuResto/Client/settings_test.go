@@ -13,7 +13,7 @@ import (
 
 func settingsGame() *Game {
 	c := environment.DefaultConfig()
-	generator := agents.StudentGenerator{Seed: environment.RandomSeed, ArrivalInterval: environment.ArrivalInterval}
+	generator := agents.StudentGenerator{ArrivalInterval: environment.ArrivalInterval}
 	students, _ := generator.Generate(environment.DefaultStudentCount)
 	g := &Game{options: Options{Config: c, Students: students}, speed: environment.DefaultPlaybackSpeed, chinese: true, configuring: true}
 	g.populateSettings()
@@ -96,10 +96,14 @@ func TestRestoreDefaultsResetsSettingsAndPreparation(t *testing.T) {
 	g.speed = 16
 	g.preparation = nil
 	g.restoreDefaults()
-	want := settingsGame()
-	if !reflect.DeepEqual(g.options, want.options) || !reflect.DeepEqual(g.preparation, want.preparation) ||
-		!reflect.DeepEqual(g.settingValues, want.settingValues) || g.speed != want.speed {
+	if !reflect.DeepEqual(g.options.Config, environment.DefaultConfig()) || len(g.options.Students) != environment.DefaultStudentCount ||
+		g.speed != environment.DefaultPlaybackSpeed || len(g.preparation) != len(environment.DefaultMainDishes()) {
 		t.Fatal("恢复默认应同时重置人数、时间、速度、窗口数量和备餐")
+	}
+	for i, student := range g.options.Students {
+		if student.ID != i+1 || student.ArrivalTime != time.Duration(i)*environment.ArrivalInterval {
+			t.Fatal("重新生成的学生应采用默认人数和到达间隔")
+		}
 	}
 }
 

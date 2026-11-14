@@ -12,7 +12,7 @@ func (e *engine) enter(student *studentState, area agents.Area) {
 	}
 	student.result.Area = area
 	student.result.Path = append(student.result.Path, area)
-	student.started, student.ready, student.elapsed = false, false, 0
+	student.started, student.ready, student.selfServiceRemaining = false, false, 0
 	e.stats.peakOccupancy[area] = max(e.stats.peakOccupancy[area], e.queues[area].Len())
 	e.emit(agents.Entered, id, 0, from, area)
 }

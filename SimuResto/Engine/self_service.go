@@ -15,6 +15,7 @@ func (e *engine) startSelfService() {
 			continue
 		}
 		student.started = true
+		student.selfServiceRemaining = randomServiceTime(environment.MinSelfServiceTime, environment.MaxSelfServiceTime)
 		e.emit(agents.SelfServiceStart, id, 0, agents.SelfService, agents.SelfService)
 		student.missingSides = e.collectSelfServiceItems(student)
 		var dishes []string
@@ -66,8 +67,8 @@ func (e *engine) stepSelfService(step time.Duration) {
 	for _, id := range e.queues[agents.SelfService].IDs() {
 		student := e.ID2Student[id]
 		if student.started && !student.ready {
-			student.elapsed += step
-			if student.elapsed >= environment.SelfServiceTime {
+			student.selfServiceRemaining = max(0, student.selfServiceRemaining-step)
+			if student.selfServiceRemaining == 0 {
 				student.ready = true
 			}
 		}

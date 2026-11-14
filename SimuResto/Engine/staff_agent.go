@@ -4,11 +4,11 @@ import (
 	"time"
 
 	agents "simuresto/SimuResto/Agents"
+	environment "simuresto/SimuResto/Environment"
 )
 
 type assignment struct {
 	studentID int
-	duration  time.Duration
 }
 
 type workTick struct {
@@ -29,12 +29,17 @@ type staffAgent struct {
 
 // 工作人员在自己的 goroutine 中维护当前任务和剩余服务时间。
 func runStaff(staff agents.Staff, agent staffAgent) {
+	minimum, maximum := environment.MinMainServiceTime, environment.MaxMainServiceTime
+	if staff.Role == agents.Cashier {
+		minimum, maximum = environment.MinPaymentTime, environment.MaxPaymentTime
+	}
 	var current assignment
 	var remaining time.Duration
 	for tick := range agent.in {
 		if tick.start != nil {
 			current = *tick.start
-			remaining = current.duration
+			// 新任务只抽取一次耗时，后续时钟更新继续扣减剩余时间。
+			remaining = randomServiceTime(minimum, maximum)
 		}
 		busy := min(tick.elapsed, remaining)
 		remaining -= busy
