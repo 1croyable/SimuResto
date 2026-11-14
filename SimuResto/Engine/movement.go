@@ -28,10 +28,11 @@ func (e *engine) admit() {
 			area = agents.Inside
 		}
 		if e.queues[area].Len() == e.queues[area].Capacity() {
-			student.result.Status = agents.Rejected
+			// 看到队列已满而直接离开的学生，也属于放弃排队。
+			student.result.Status = agents.Abandoned
 			student.result.ExitTime = e.now
 			e.stats.finishedStudentCount++
-			e.emit(agents.QueueFull, student.result.Student.ID, 0, agents.NoArea, agents.NoArea)
+			e.emit(agents.LeftQueue, student.result.Student.ID, 0, agents.NoArea, agents.NoArea)
 			continue
 		}
 		student.result.Status = agents.Active

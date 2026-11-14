@@ -40,7 +40,7 @@ func TestGameCompletesThroughBothEntryPoints(t *testing.T) {
 	// 每轮重新随机抽取选菜与耗时，两种入口都应使所有学生进入结束状态。
 	for _, report := range []Report{continuousReport, game.Report()} {
 		metrics := report.Metrics
-		if metrics.Completed+metrics.Abandoned+metrics.Rejected+metrics.Cancelled != len(students) {
+		if metrics.Completed+metrics.Abandoned+metrics.Cancelled != len(students) {
 			t.Fatal("连续运行与逐步推进都必须处理完所有学生")
 		}
 		for _, student := range report.Students {

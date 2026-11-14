@@ -50,8 +50,8 @@ func run() int {
 func printSummary(report engine.Report) {
 	metrics := report.Metrics
 	fmt.Printf("Simulated duration: %s\n", report.Duration)
-	fmt.Printf("Students: %d completed, %d abandoned, %d rejected (full), %d cancelled\n",
-		metrics.Completed, metrics.Abandoned, metrics.Rejected, metrics.Cancelled)
+	fmt.Printf("Students: %d completed, %d abandoned, %d cancelled\n",
+		metrics.Completed, metrics.Abandoned, metrics.Cancelled)
 	fmt.Printf("Average wait: %s | Satisfaction: %.1f/100 | Abandonment: %.1f%% | Throughput: %.1f students/min\n\n",
 		metrics.AverageWait.Round(time.Millisecond), metrics.AverageSatisfaction,
 		100*metrics.AbandonmentRate, metrics.MealsPerMinute)

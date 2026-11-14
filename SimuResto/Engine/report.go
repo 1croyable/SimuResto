@@ -29,7 +29,6 @@ type StaffResult struct {
 type Metrics struct {
 	Completed           int
 	Abandoned           int
-	Rejected            int
 	Cancelled           int
 	AverageWait         time.Duration
 	AverageWaitByArea   map[agents.Area]time.Duration
@@ -56,6 +55,7 @@ func (e *engine) report() Report {
 	var totalWait time.Duration
 	var totalSatisfaction float64
 	admitted := 0
+	arrivedCount := 0
 	visitors := make(map[agents.Area]int)
 	for _, student := range e.students {
 		result := student.result
@@ -65,10 +65,12 @@ func (e *engine) report() Report {
 			report.Metrics.Completed++
 		case agents.Abandoned:
 			report.Metrics.Abandoned++
-		case agents.Rejected:
-			report.Metrics.Rejected++
 		case agents.Cancelled:
 			report.Metrics.Cancelled++
+		}
+		// 已进入队列或到达后直接放弃的学生，都计入放弃率的分母。
+		if len(result.Path) > 0 || result.Status == agents.Abandoned {
+			arrivedCount++
 		}
 		if len(result.Path) > 0 {
 			admitted++
@@ -90,7 +92,9 @@ func (e *engine) report() Report {
 	if admitted > 0 {
 		report.Metrics.AverageWait = totalWait / time.Duration(admitted)
 		report.Metrics.AverageSatisfaction = totalSatisfaction / float64(admitted)
-		report.Metrics.AbandonmentRate = float64(report.Metrics.Abandoned) / float64(admitted)
+	}
+	if arrivedCount > 0 {
+		report.Metrics.AbandonmentRate = float64(report.Metrics.Abandoned) / float64(arrivedCount)
 	}
 	if e.now > 0 {
 		report.Metrics.MealsPerMinute = float64(report.Metrics.Completed) / e.now.Minutes()

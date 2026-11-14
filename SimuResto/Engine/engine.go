@@ -31,7 +31,7 @@ type staffState struct {
 }
 
 type simulationStats struct {
-	finishedStudentCount int                 // 已结束的学生总数：完成、离队、拒绝入场或取消均计入。
+	finishedStudentCount int                 // 已结束的学生总数：完成、放弃排队或取消均计入。
 	peakOccupancy        map[agents.Area]int // 每个区域曾同时容纳的最大学生人数。
 	events               []Event             // 按发生顺序保存的事件记录。
 }

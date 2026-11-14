@@ -246,7 +246,7 @@ func (g *Game) people(screen *ebiten.Image) {
 		if person.preference == agents.Vegetarian {
 			fill = green
 		}
-		if person.status == agents.Abandoned || person.status == agents.Rejected || person.status == agents.Cancelled {
+		if person.status == agents.Abandoned || person.status == agents.Cancelled {
 			fill = red
 		}
 		if person.status != agents.Active && len(person.path) == 0 {
@@ -296,9 +296,9 @@ func (g *Game) sidebar(screen *ebiten.Image) {
 		label string
 		value int
 	}{
-		{g.label("在场", "ACTIVE"), active}, {g.label("完成", "SERVED"), g.snapshot.Metrics.Completed}, {g.label("离队", "LEFT"), g.snapshot.Metrics.Abandoned}, {g.label("满员拒绝", "REJECTED"), g.snapshot.Metrics.Rejected},
+		{g.label("在场", "ACTIVE"), active}, {g.label("完成", "SERVED"), g.snapshot.Metrics.Completed}, {g.label("放弃排队", "ABANDONED"), g.snapshot.Metrics.Abandoned},
 	} {
-		x := float64(1100 + i*79)
+		x := float64(1100 + i*104)
 		g.text(screen, fmt.Sprint(item.value), x, 187, 24, ink)
 		g.text(screen, item.label, x, 224, 11, muted)
 	}

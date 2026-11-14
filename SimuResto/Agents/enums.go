@@ -45,7 +45,6 @@ const (
 	Active    Status = "active"
 	Completed Status = "completed"
 	Abandoned Status = "abandoned"
-	Rejected  Status = "rejected"
 	Cancelled Status = "cancelled"
 )
 
@@ -65,7 +64,6 @@ const (
 	Paid             Signal = "paid"
 	Finished         Signal = "finished"
 	LeftQueue        Signal = "left_queue"
-	QueueFull        Signal = "queue_full"
 	Stopped          Signal = "stopped"
 	Progress         Signal = "progress"
 )
