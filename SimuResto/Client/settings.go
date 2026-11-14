@@ -29,7 +29,7 @@ type settingSpec struct {
 
 // 开始前只保留三个数值设置，其他食堂规则由 Environment 中的常量决定。
 var settingSpecs = []settingSpec{
-	{"学生人数", "Students", "", 1, 2000, 10, true},
+	{"学生人数", "Students", "", 1, 3000, 10, true},
 	{"收银窗口数量", "Open cashiers", "", 1, 2, 1, true},
 	{"逻辑步长", "Logical step", "s", 0.05, 2, 0.05, false},
 }

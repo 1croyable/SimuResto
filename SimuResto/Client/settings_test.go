@@ -75,7 +75,7 @@ func TestInvalidSettingsDoNotStartSimulation(t *testing.T) {
 		key   settingKey
 		value string
 	}{
-		{studentCount, ""}, {studentCount, "-1"}, {studentCount, "1.5"}, {studentCount, "2001"},
+		{studentCount, ""}, {studentCount, "-1"}, {studentCount, "1.5"}, {studentCount, settingText(settingSpecs[studentCount].maximum + 1)},
 		{cashierCount, "0"}, {cashierCount, "3"}, {cashierCount, "1.5"},
 		{tickSeconds, "0"}, {tickSeconds, "NaN"}, {tickSeconds, "Inf"}, {tickSeconds, "3"},
 	} {

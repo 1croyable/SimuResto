@@ -42,25 +42,26 @@ func DefaultMainIngredients() MainIngredients {
 
 func DefaultMainDishes() []agents.Dish {
 	food := DefaultMainIngredients()
+	// 默认共 1200 份：素食 480 份，荤食 720 份。
 	return []agents.Dish{
 		agents.NewComposedMain("rice_plant_burger", agents.MainComponents{
 			Staple: food.Staples[0], Vegetable: food.Vegetables[0], Protein: food.Proteins[3],
-		}, 14),
+		}, 168),
 		agents.NewComposedMain("pasta_plant_nuggets", agents.MainComponents{
 			Staple: food.Staples[1], Vegetable: food.Vegetables[2], Protein: food.Proteins[4],
-		}, 13),
+		}, 156),
 		agents.NewComposedMain("couscous_tofu", agents.MainComponents{
 			Staple: food.Staples[3], Vegetable: food.Vegetables[3], Protein: food.Proteins[5],
-		}, 13),
+		}, 156),
 		agents.NewComposedMain("rice_chicken", agents.MainComponents{
 			Staple: food.Staples[0], Vegetable: food.Vegetables[0], Protein: food.Proteins[0],
-		}, 20),
+		}, 240),
 		agents.NewComposedMain("mash_fish", agents.MainComponents{
 			Staple: food.Staples[2], Vegetable: food.Vegetables[1], Protein: food.Proteins[1],
-		}, 20),
+		}, 240),
 		agents.NewComposedMain("pasta_beef", agents.MainComponents{
 			Staple: food.Staples[1], Vegetable: food.Vegetables[2], Protein: food.Proteins[2],
-		}, 20),
+		}, 240),
 	}
 }
 
