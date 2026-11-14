@@ -53,7 +53,7 @@ func (g *Game) Step(ctx context.Context) (bool, error) {
 	if e.stats.finishedStudentCount == len(e.students) {
 		return g.finish(nil)
 	}
-	if e.now >= e.config.MaxDuration {
+	if e.now >= environment.ServiceDuration {
 		e.stop()
 		return g.finish(ErrTimeLimit)
 	}
@@ -63,7 +63,7 @@ func (g *Game) Step(ctx context.Context) (bool, error) {
 	e.moveForward()
 	e.startSelfService()
 	e.assignStaff()
-	step := min(e.config.Tick, e.config.MaxDuration-e.now)
+	step := min(e.config.Tick, environment.ServiceDuration-e.now)
 	e.countWaiting(step)
 	e.now += step
 	e.stepSelfService(step)

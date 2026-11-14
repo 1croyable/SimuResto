@@ -42,10 +42,11 @@ type engine struct {
 	config environment.Config // 本轮模拟的时间设置、收银数量和菜单。
 	now    time.Duration      // 从模拟开始累计经过的模拟时间，不是现实中的钟表时间。
 
-	students         []*studentState       // 全体学生的运行状态，保留输入顺序，包含未到达及已结束的学生。
-	ID2Student       map[int]*studentState // 用学生 ID 快速找到运行状态，与 students 指向同一批对象。
-	arrivalStudent   []*studentState       // 按计划到达时间排序的学生列表，与 students 共享状态对象。
-	nextArrivalIndex int                   // arrivalStudent 中下一条尚未处理的到达记录的下标。
+	students          []*studentState       // 全体学生的运行状态，保留输入顺序，包含未到达及已结束的学生。
+	ID2Student        map[int]*studentState // 用学生 ID 快速找到运行状态，与 students 指向同一批对象。
+	arrivalStudent    []*studentState       // 按计划时间排序；已到计划时间但未放行的部分就是隐藏缓冲区。
+	nextArrivalIndex  int                   // arrivalStudent 中下一条尚未处理的到达记录的下标。
+	nextAdmissionTime time.Duration         // 下一名学生最早可以实际抵达的模拟时间。
 
 	staff  []*staffState                      // 打饭人员和收银员的运行状态，包含当前任务和通信 channel。
 	queues map[agents.Area]*environment.Queue // 每个区域的 FIFO 队列，保存学生 ID；包括正在接受服务的学生。
@@ -81,16 +82,10 @@ func newEngine(config environment.Config, students []agents.Student) *engine {
 				Student: student, Status: agents.Scheduled, Satisfaction: student.Satisfaction,
 				Waiting: make(map[agents.Area]time.Duration),
 			},
-			agent: studentAgent{in: make(chan observation), out: make(chan decision)},
 		}
 		e.students = append(e.students, state)
 		e.ID2Student[student.ID] = state
 		e.arrivalStudent = append(e.arrivalStudent, state)
-		e.agentWG.Add(1)
-		go func() {
-			defer e.agentWG.Done()
-			runStudent(student, state.agent)
-		}()
 	}
 
 	sort.SliceStable(e.arrivalStudent, func(i, j int) bool {
@@ -118,7 +113,9 @@ func newEngine(config environment.Config, students []agents.Student) *engine {
 
 func (e *engine) closeAgents() {
 	for _, student := range e.students {
-		close(student.agent.in)
+		if student.agent.in != nil {
+			close(student.agent.in)
+		}
 	}
 	for _, staff := range e.staff {
 		close(staff.agent.in)

@@ -82,12 +82,13 @@ func transitionPath(from, to agents.Area, target point) []point {
 		path = append(path, entryPath[0])
 		if to == agents.Inside {
 			// 从入口沿室内队列反向走向对应位置。
-			for i := len(indoorLine) - 1; i >= 0; i-- {
-				p := indoorLine[i]
-				if p.x == target.x && target.y >= p.y {
-					break
+			for i := len(indoorLine) - 1; i > 0; i-- {
+				from, to := indoorLine[i], indoorLine[i-1]
+				path = append(path, from)
+				// 横向、纵向线段都要检查，抵达自己的位置后不再走向队首。
+				if onSegment(target, from, to) {
+					return append(path, target)
 				}
-				path = append(path, p)
 			}
 			return append(path, target)
 		}
@@ -103,6 +104,13 @@ func transitionPath(from, to agents.Area, target point) []point {
 		path = append(path, point{230, 350}, point{230, target.y})
 	}
 	return append(path, target)
+}
+
+// 点在线段上时，到两端的距离之和等于线段长度；允许浮点计算误差。
+func onSegment(p, from, to point) bool {
+	toEnds := math.Hypot(p.x-from.x, p.y-from.y) + math.Hypot(p.x-to.x, p.y-to.y)
+	length := math.Hypot(to.x-from.x, to.y-from.y)
+	return math.Abs(toEnds-length) < 1e-6
 }
 
 func exitPath(id int, current point) []point {

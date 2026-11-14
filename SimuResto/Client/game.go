@@ -210,7 +210,8 @@ func (g *Game) syncDots() {
 		}
 	}
 	for _, student := range g.snapshot.Students {
-		if student.Status == agents.Scheduled {
+		// 尚未放行的学生始终不可见，结束模拟时也不生成取消动画。
+		if student.Status == agents.Scheduled || (student.Status == agents.Cancelled && len(student.Path) == 0) {
 			continue
 		}
 		id := student.Student.ID

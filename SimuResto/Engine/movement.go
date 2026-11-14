@@ -2,6 +2,7 @@ package engine
 
 import (
 	agents "simuresto/SimuResto/Agents"
+	environment "simuresto/SimuResto/Environment"
 )
 
 // 只有队首可以前进；下一区域满员时，学生留在当前区域。
@@ -18,29 +19,35 @@ func (e *engine) enter(student *studentState, area agents.Area) {
 }
 
 func (e *engine) admit() {
-	for e.nextArrivalIndex < len(e.arrivalStudent) && e.arrivalStudent[e.nextArrivalIndex].result.Student.ArrivalTime <= e.now {
-		student := e.arrivalStudent[e.nextArrivalIndex]
-		e.nextArrivalIndex++
-		student.result.ArrivalTime = e.now
-		e.emit(agents.Arrived, student.result.Student.ID, 0, agents.NoArea, agents.NoArea)
-		area := agents.Outside
-		if e.queues[agents.Outside].Len() == 0 && e.queues[agents.Inside].Len() < e.queues[agents.Inside].Capacity() {
-			area = agents.Inside
-		}
-		if e.queues[area].Len() == e.queues[area].Capacity() {
-			// 看到队列已满而直接离开的学生，也属于放弃排队。
-			student.result.Status = agents.Abandoned
-			student.result.ExitTime = e.now
-			e.stats.finishedStudentCount++
-			e.emit(agents.LeftQueue, student.result.Student.ID, 0, agents.NoArea, agents.NoArea)
-			continue
-		}
-		student.result.Status = agents.Active
-		e.enter(student, area)
-		// 立即推进队列，让同时到达的学生使用所有空余位置，
-		// 并始终优先接纳已经在室外排队的学生。
-		e.moveForward()
+	if e.nextArrivalIndex >= len(e.arrivalStudent) || e.now < e.nextAdmissionTime {
+		return
 	}
+	student := e.arrivalStudent[e.nextArrivalIndex]
+	if student.result.Student.ArrivalTime > e.now {
+		return
+	}
+	// 每刻度最多放行一人，不补发积压；缓冲期间仍为 Scheduled，不启动智能体。
+	e.nextArrivalIndex++
+	e.nextAdmissionTime = e.now + environment.MinArrivalInterval
+	student.result.ArrivalTime = e.now
+	e.emit(agents.Arrived, student.result.Student.ID, 0, agents.NoArea, agents.NoArea)
+	area := agents.Outside
+	if e.queues[agents.Outside].Len() == 0 && e.queues[agents.Inside].Len() < e.queues[agents.Inside].Capacity() {
+		area = agents.Inside
+	}
+	if e.queues[area].Len() == e.queues[area].Capacity() {
+		// 看到队列已满而直接离开的学生，也属于放弃排队；同样占用本次放行间隔。
+		student.result.Status = agents.Abandoned
+		student.result.ExitTime = e.now
+		e.stats.finishedStudentCount++
+		e.emit(agents.LeftQueue, student.result.Student.ID, 0, agents.NoArea, agents.NoArea)
+		return
+	}
+	student.result.Status = agents.Active
+	e.enter(student, area)
+	e.startStudentAgent(student)
+	// 立即使用空余位置，并始终优先接纳已经在室外排队的学生。
+	e.moveForward()
 }
 
 // 往前走，前进一步

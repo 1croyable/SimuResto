@@ -10,8 +10,8 @@ const DefaultTemperature float32 = 1 // 默认保留原有的按评分权重抽�
 type Student struct {
 	ID             int
 	Preference     Preference
-	Temperature    float32 // LLM temperature
-	ArrivalTime    time.Duration
+	Temperature    float32       // LLM temperature
+	ArrivalTime    time.Duration // 客流计划时间：到时进入隐藏缓冲区，实际抵达可能稍晚。
 	Patience       time.Duration //是否改成数值比较好？
 	Satisfaction   float32       //满分100，0-100
 	StartersWanted int           // 优先想拿的前菜份数，缺货或受限时允许换成甜点。

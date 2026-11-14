@@ -25,7 +25,7 @@ func run() int {
 		return 2
 	}
 	config := environment.DefaultConfig()
-	generator := agents.StudentGenerator{ArrivalInterval: environment.ArrivalInterval}
+	generator := environment.DefaultStudentGenerator(config.Tick)
 	students, err := generator.Generate(environment.DefaultStudentCount)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

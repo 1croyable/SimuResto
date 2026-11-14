@@ -30,6 +30,8 @@ func TestCashierCanCloseDuringPaymentAndReopen(t *testing.T) {
 	second := game.engine.staff[environment.Servers+1]
 	// 直接准备两名待付款学生，保证本测试覆盖两个窗口同时忙碌的情况。
 	game.engine.admit()
+	game.engine.now += environment.MinArrivalInterval
+	game.engine.admit()
 	for _, student := range game.engine.students[:2] {
 		game.engine.queues[student.result.Area].Remove(student.result.Student.ID)
 		game.engine.enter(student, agents.Payment)

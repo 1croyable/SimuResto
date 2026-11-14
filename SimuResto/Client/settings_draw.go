@@ -35,7 +35,7 @@ func (g *Game) drawSettings(screen *ebiten.Image) {
 	g.drawFPS(screen)
 	g.panel(screen, rectangle{20, 90, 1044, 770})
 	g.text(screen, g.label("准备开餐", "PREPARE FOR LUNCH"), 48, 111, 25, ink)
-	g.text(screen, g.label("设置人数、窗口和模拟时间，准备好主菜后即可开始。", "Set students, cashiers and time, prepare the mains, then start."), 48, 148, 13, muted)
+	g.text(screen, g.label("设置人数、窗口和逻辑步长，准备好主菜后即可开始。", "Set students, cashiers and logical step, prepare the mains, then start."), 48, 148, 13, muted)
 	for i, tab := range settingTabs {
 		g.button(screen, settingTabBox(i), g.label(tab[0], tab[1]), g.settingsTab == i)
 	}
@@ -75,7 +75,8 @@ func (g *Game) drawSetupSummary(screen *ebiten.Image) {
 	g.text(screen, g.settingValues[studentCount], 1100, 154, 46, ink)
 	g.text(screen, g.label("名学生", "STUDENTS"), 1102, 216, 13, muted)
 	g.text(screen, fmt.Sprintf(g.label("逻辑步长 %s 秒", "Logical step %s s"), g.settingValues[tickSeconds]), 1100, 254, 15, ink)
-	g.text(screen, fmt.Sprintf(g.label("最长模拟 %s 分钟", "Duration limit %s min"), g.settingValues[maxMinutes]), 1100, 286, 15, ink)
+	openingMinutes, closingMinutes := int(environment.OpeningTime.Minutes()), int(environment.ClosingTime.Minutes())
+	g.text(screen, fmt.Sprintf(g.label("营业时间 %02d:%02d–%02d:%02d", "Service hours %02d:%02d-%02d:%02d"), openingMinutes/60, openingMinutes%60, closingMinutes/60, closingMinutes%60), 1100, 286, 15, ink)
 	line(screen, point{1100, 326}, point{1400, 326}, 1, border)
 	total, vegetarian, valid := 0, 0, true
 	for _, row := range g.preparation {
@@ -102,6 +103,9 @@ func (g *Game) drawSetupSummary(screen *ebiten.Image) {
 	g.text(screen, fmt.Sprintf(g.label("开放收银 %s 个 · 播放 %gx", "%s cashiers open / speed %gx"), g.settingValues[cashierCount], g.speed), 1100, 562, 15, ink)
 	g.text(screen, g.label("运行中可切换 1 / 2 个窗口。", "Switch between 1 / 2 cashiers while running."), 1100, 595, 13, muted)
 	g.text(screen, g.label("关闭窗口会先完成当前付款。", "Closing a cashier finishes its current payment."), 1100, 624, 13, muted)
+	peakMinutes := int(environment.ArrivalPeakTime.Minutes())
+	g.text(screen, fmt.Sprintf(g.label("开门缓冲 %g%% · 峰值 %02d:%02d", "Opening buffer %g%% / peak %02d:%02d"), 100*environment.OpeningStudentRatio, peakMinutes/60, peakMinutes%60), 1100, 656, 13, muted)
+	g.text(screen, fmt.Sprintf(g.label("均匀 %g%% + 正态 %g%% · σ %g 分钟", "Uniform %g%% + normal %g%% / sigma %g min"), 100*environment.UniformArrivalRatio, 100*(1-environment.UniformArrivalRatio), environment.ArrivalSigma.Minutes()), 1100, 681, 12, muted)
 	g.button(screen, defaultsButton, g.label("恢复默认设置与菜单", "Restore defaults and menu"), false)
 	g.button(screen, startButton, g.label("开始模拟  →", "Start simulation  >"), true)
 }

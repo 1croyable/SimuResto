@@ -9,8 +9,8 @@ import (
 
 // Validate 检查模拟配置、菜单及学生资料是否有效。
 func (c Config) Validate(students []agents.Student) error {
-	if c.Tick <= 0 || c.MaxDuration <= 0 {
-		return fmt.Errorf("逻辑步长和最长模拟时间必须大于零")
+	if c.Tick <= 0 {
+		return fmt.Errorf("逻辑步长必须大于零")
 	}
 	if c.Cashiers < 1 || c.Cashiers > MaxCashiers {
 		return fmt.Errorf("收银窗口数量只能为 1 或 2")

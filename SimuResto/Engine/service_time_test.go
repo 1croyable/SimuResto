@@ -12,7 +12,6 @@ import (
 func TestEachServiceUsesRandomTimeWithinBounds(t *testing.T) {
 	config := neutralMealConfig()
 	config.Tick = 50 * time.Millisecond
-	config.MaxDuration = 20 * time.Minute
 	students := make([]agents.Student, 20)
 	for i := range students {
 		students[i] = mealStudent()

@@ -13,7 +13,7 @@ import (
 
 func settingsGame() *Game {
 	c := environment.DefaultConfig()
-	generator := agents.StudentGenerator{ArrivalInterval: environment.ArrivalInterval}
+	generator := environment.DefaultStudentGenerator(c.Tick)
 	students, _ := generator.Generate(environment.DefaultStudentCount)
 	g := &Game{options: Options{Config: c, Students: students}, speed: environment.DefaultPlaybackSpeed, chinese: true, configuring: true}
 	g.populateSettings()
@@ -28,19 +28,21 @@ func TestSettingsApplyBeforeStartingAgents(t *testing.T) {
 	g.settingValues[studentCount] = "12"
 	g.settingValues[cashierCount] = "1"
 	g.settingValues[tickSeconds] = "0.5"
-	g.settingValues[maxMinutes] = "10"
 	if err := g.startConfigured(); err != nil {
 		t.Fatal(err)
 	}
 	defer g.Close()
 	if g.configuring || g.simulationGame == nil || len(g.options.Students) != 12 ||
-		g.options.Config.Cashiers != 1 || g.options.Config.Tick != 500*time.Millisecond || g.options.Config.MaxDuration != 10*time.Minute {
+		g.options.Config.Cashiers != 1 || g.options.Config.Tick != 500*time.Millisecond {
 		t.Fatal("开始按钮未应用人数与时间设置")
 	}
-	if g.options.Students[1].ArrivalTime != environment.ArrivalInterval || g.speed != environment.DefaultPlaybackSpeed || g.snapshot.Duration != 0 {
-		t.Fatal("到达间隔和默认速度应保持固定，开始前不应累计模拟时间")
+	if g.options.Students[1].ArrivalTime <= 0 || g.speed != environment.DefaultPlaybackSpeed || g.snapshot.Duration != 0 {
+		t.Fatal("学生应按客流计划到达，开始前不应累计模拟时间")
 	}
 	for _, student := range g.snapshot.Students {
+		if student.Student.ArrivalTime%g.options.Config.Tick != 0 {
+			t.Fatal("到达计划必须使用界面设置的逻辑步长")
+		}
 		if student.Student.Temperature != agents.DefaultTemperature {
 			t.Fatal("开始模拟时应使用默认学生温度")
 		}
@@ -60,8 +62,8 @@ func TestSettingsApplyBeforeStartingAgents(t *testing.T) {
 	g.step()
 	old := g.simulationGame
 	g.openSettings()
-	if !g.configuring || !reflect.DeepEqual(g.settingValues, []string{"12", "1", "0.5", "10"}) {
-		t.Fatal("返回设置应保留上一轮人数与模拟时间")
+	if !g.configuring || !reflect.DeepEqual(g.settingValues, []string{"12", "1", "0.5"}) {
+		t.Fatal("返回设置应保留上一轮人数、窗口数量与逻辑步长")
 	}
 	if done, err := old.Step(context.Background()); !done || !errors.Is(err, context.Canceled) {
 		t.Fatal("返回设置必须结束上一轮智能体")
@@ -76,7 +78,6 @@ func TestInvalidSettingsDoNotStartSimulation(t *testing.T) {
 		{studentCount, ""}, {studentCount, "-1"}, {studentCount, "1.5"}, {studentCount, "2001"},
 		{cashierCount, "0"}, {cashierCount, "3"}, {cashierCount, "1.5"},
 		{tickSeconds, "0"}, {tickSeconds, "NaN"}, {tickSeconds, "Inf"}, {tickSeconds, "3"},
-		{maxMinutes, "0"}, {maxMinutes, "1.5"}, {maxMinutes, "121"},
 	} {
 		g := settingsGame()
 		g.settingValues[change.key] = change.value
@@ -101,8 +102,8 @@ func TestRestoreDefaultsResetsSettingsAndPreparation(t *testing.T) {
 		t.Fatal("恢复默认应同时重置人数、时间、速度、窗口数量和备餐")
 	}
 	for i, student := range g.options.Students {
-		if student.ID != i+1 || student.ArrivalTime != time.Duration(i)*environment.ArrivalInterval {
-			t.Fatal("重新生成的学生应采用默认人数和到达间隔")
+		if student.ID != i+1 || student.ArrivalTime < 0 || student.ArrivalTime > environment.ClosingTime-environment.OpeningTime {
+			t.Fatal("重新生成的学生应采用默认人数和营业时间内的到达计划")
 		}
 	}
 }

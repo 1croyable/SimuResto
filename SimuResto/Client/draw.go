@@ -283,9 +283,9 @@ func (g *Game) areaName(area agents.Area) string {
 func (g *Game) sidebar(screen *ebiten.Image) {
 	g.panel(screen, rectangle{1080, 90, 340, 170})
 	g.text(screen, g.label("本轮概况", "LIVE OVERVIEW"), 1100, 106, 16, ink)
-	elapsed := g.snapshot.Duration / time.Second
-	g.text(screen, fmt.Sprintf("%02d:%02d", elapsed/60, elapsed%60), 1100, 133, 34, ink)
-	g.text(screen, g.label("模拟时间", "SIMULATED TIME"), 1242, 152, 12, muted)
+	clock := (environment.OpeningTime + g.snapshot.Duration) / time.Minute
+	g.text(screen, fmt.Sprintf("%02d:%02d", clock/60, clock%60), 1100, 133, 34, ink)
+	g.text(screen, g.label("营业时钟", "SERVICE CLOCK"), 1242, 152, 12, muted)
 	active := 0
 	for _, student := range g.snapshot.Students {
 		if student.Status == agents.Active {

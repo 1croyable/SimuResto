@@ -14,7 +14,7 @@ import (
 func TestGameCompletesThroughBothEntryPoints(t *testing.T) {
 	config := environment.DefaultConfig()
 	config.Tick = time.Second
-	generator := agents.StudentGenerator{ArrivalInterval: time.Second}
+	generator := environment.DefaultStudentGenerator(config.Tick)
 	students, err := generator.Generate(90)
 	if err != nil {
 		t.Fatal(err)

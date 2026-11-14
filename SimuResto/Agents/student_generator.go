@@ -2,7 +2,6 @@ package agents
 
 import (
 	"fmt"
-	"math"
 	"math/rand/v2"
 	"time"
 )
@@ -10,18 +9,25 @@ import (
 // StudentGenerator 保存学生生成规则，供命令行和图形前端共用。
 // 只负责生成学生资料，不管理入场、队列或学生 goroutine。
 type StudentGenerator struct {
-	ArrivalInterval time.Duration // 当前采用固定到达间隔，0 表示同时到达。
+	Tick            time.Duration // 与本轮游戏一致的逻辑步长。
+	ArrivalDuration time.Duration // 从开门到停止接纳新学生的时长。
+	ArrivalPeak     time.Duration // 客流峰值距开门的时间。
+	ArrivalSigma    time.Duration // 到达时间的标准差。
+	OpeningRatio    float64       // 开门时已经到达的学生比例，包含在总人数内。
+	UniformRatio    float64       // 后续客流中均匀分布的占比，其余采用正态分布。
 }
 
-// Generate 每次随机生成一批学生，ID 从 1 开始，到达时间从 0 开始。
+// Generate 提前创建学生资料，并按每个游戏刻度的累计客流安排到达。
 // 多次调用用于创建不同轮次的模拟，不用于向同一轮模拟追加学生。
 func (g StudentGenerator) Generate(count int) ([]Student, error) {
-	arrivalInterval := g.ArrivalInterval
-	if count < 0 || arrivalInterval < 0 {
-		return nil, fmt.Errorf("student count and arrival interval cannot be negative")
+	if count < 0 || g.Tick <= 0 || g.ArrivalDuration <= 0 || g.ArrivalSigma <= 0 || g.ArrivalPeak < 0 || g.ArrivalPeak > g.ArrivalDuration {
+		return nil, fmt.Errorf("学生人数不能为负，逻辑步长、营业时长和标准差必须为正，峰值必须位于营业时间内")
 	}
-	if count > 1 && int64(arrivalInterval) > math.MaxInt64/int64(count-1) {
-		return nil, fmt.Errorf("arrival schedule overflows time.Duration")
+	if !(g.OpeningRatio >= 0 && g.OpeningRatio <= 1) {
+		return nil, fmt.Errorf("开门时的学生比例必须在 0 到 1 之间")
+	}
+	if !(g.UniformRatio >= 0 && g.UniformRatio <= 1) {
+		return nil, fmt.Errorf("均匀客流比例必须在 0 到 1 之间")
 	}
 	students := make([]Student, count)
 	for i := range students {
@@ -30,7 +36,7 @@ func (g StudentGenerator) Generate(count int) ([]Student, error) {
 			preference = Vegetarian
 		}
 		students[i] = Student{
-			ID: i + 1, Preference: preference, ArrivalTime: time.Duration(i) * arrivalInterval,
+			ID: i + 1, Preference: preference,
 			Patience:     time.Duration(40+rand.IntN(121)) * time.Second,
 			Satisfaction: float32(80 + rand.IntN(16)),
 			Temperature:  DefaultTemperature,
@@ -47,5 +53,6 @@ func (g StudentGenerator) Generate(count int) ([]Student, error) {
 		}
 		students[i].DessertsWanted = 2 - students[i].StartersWanted
 	}
+	g.scheduleArrivals(students)
 	return students, nil
 }

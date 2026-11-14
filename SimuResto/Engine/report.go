@@ -10,7 +10,7 @@ type StudentResult struct {
 	Student      agents.Student
 	Status       agents.Status
 	Area         agents.Area
-	ArrivalTime  time.Duration
+	ArrivalTime  time.Duration // 从隐藏缓冲区放行、实际抵达食堂的时间。
 	ExitTime     time.Duration
 	Satisfaction float32
 	TotalWait    time.Duration

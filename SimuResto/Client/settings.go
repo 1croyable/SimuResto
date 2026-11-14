@@ -19,7 +19,6 @@ const (
 	studentCount settingKey = iota
 	cashierCount
 	tickSeconds
-	maxMinutes
 )
 
 type settingSpec struct {
@@ -28,12 +27,11 @@ type settingSpec struct {
 	integer                bool
 }
 
-// 开始前只保留四个数值设置，其他食堂规则由 Environment 中的常量决定。
+// 开始前只保留三个数值设置，其他食堂规则由 Environment 中的常量决定。
 var settingSpecs = []settingSpec{
 	{"学生人数", "Students", "", 1, 2000, 10, true},
 	{"收银窗口数量", "Open cashiers", "", 1, 2, 1, true},
 	{"逻辑步长", "Logical step", "s", 0.05, 2, 0.05, false},
-	{"最长模拟时间", "Maximum duration", "min", 1, 120, 1, true},
 }
 
 var settingTabs = [][2]string{
@@ -61,7 +59,6 @@ func (g *Game) populateSettings() {
 		strconv.Itoa(len(g.options.Students)),
 		strconv.Itoa(g.options.Config.Cashiers),
 		settingText(g.options.Config.Tick.Seconds()),
-		settingText(g.options.Config.MaxDuration.Minutes()),
 	}
 	g.focusedSetting, g.settingsError = -1, ""
 	g.populatePreparation()
@@ -76,7 +73,7 @@ func (g *Game) openSettings() {
 func (g *Game) restoreDefaults() {
 	g.options.Config = environment.DefaultConfig()
 	g.speed = environment.DefaultPlaybackSpeed
-	generator := agents.StudentGenerator{ArrivalInterval: environment.ArrivalInterval}
+	generator := environment.DefaultStudentGenerator(g.options.Config.Tick)
 	g.options.Students, _ = generator.Generate(environment.DefaultStudentCount)
 	g.populateSettings()
 }
@@ -103,7 +100,6 @@ func (g *Game) startConfigured() error {
 	}
 	config := environment.DefaultConfig()
 	config.Tick = time.Duration(values[tickSeconds] * float64(time.Second))
-	config.MaxDuration = time.Duration(values[maxMinutes] * float64(time.Minute))
 	config.Cashiers = int(values[cashierCount])
 	// 前菜和甜点使用固定菜单，主菜采用备餐页逐行指定的组合和数量。
 	config.Menu = nil
@@ -113,7 +109,7 @@ func (g *Game) startConfigured() error {
 		}
 	}
 	config.Menu = append(config.Menu, mains...)
-	generator := agents.StudentGenerator{ArrivalInterval: environment.ArrivalInterval}
+	generator := environment.DefaultStudentGenerator(config.Tick)
 	students, err := generator.Generate(int(values[studentCount]))
 	if err != nil {
 		return err
