@@ -11,6 +11,7 @@ import (
 
 	agents "simuresto/SimuResto/Agents"
 	engine "simuresto/SimuResto/Engine"
+	environment "simuresto/SimuResto/Environment"
 )
 
 var (
@@ -60,34 +61,22 @@ func (g *Game) button(screen *ebiten.Image, r rectangle, label string, active bo
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	var waitStart time.Time
-	if g.performance != nil {
-		waitStart = time.Now()
-	}
-	if !g.options.PerformanceUncapped {
-		g.frame.wait()
-	}
-	if g.performance != nil {
-		g.performance.measureWait(waitStart)
-		g.performance.frame(screen.Bounds().Dx(), screen.Bounds().Dy())
-		defer g.performance.measureDraw(time.Now())
-	}
+	g.frame.wait()
 	g.prepareRenderCache(screen)
 	if g.configuring {
 		g.drawSettings(screen)
-		g.capture(screen)
 		return
 	}
 	screen.Fill(background)
 	g.header(screen)
 	g.floorBackground(screen)
+	g.cashierCounters(screen)
 	g.zoneBadge(screen, agents.SelfService, 665, 180)
 	g.zoneBadge(screen, agents.MainService, 274, 180)
 	g.people(screen)
 	g.sidebar(screen)
 	g.text(screen, g.label("空格 暂停/继续    ← → 变速    N 单步    R 重开    P 参数设置    C 切换收银    Esc 退出", "Space Pause    Arrows Speed    N Step    R Restart    P Settings    C Cashiers    Esc Exit"), 26, 873, 13, muted)
 	g.text(screen, g.label("按手绘平面图重建 · 圆点位置为移动示意", "Floor plan from sketch · schematic movement"), 1090, 873, 12, muted)
-	g.capture(screen)
 }
 
 func (g *Game) header(screen *ebiten.Image) {
@@ -112,7 +101,7 @@ func (g *Game) header(screen *ebiten.Image) {
 	g.button(screen, pauseButton, pauseLabel, true)
 	g.button(screen, speedButton, fmt.Sprintf("%.2gx  +", g.speed), false)
 	g.button(screen, restartButton, g.label("参数设置", "Settings"), false)
-	g.button(screen, cashierButton, fmt.Sprintf(g.label("收银 %d / 切换重开", "Cashiers %d / reset"), g.options.Config.Cashiers), false)
+	g.button(screen, cashierButton, fmt.Sprintf(g.label("收银 %d / 切换", "Cashiers %d / switch"), g.options.Config.Cashiers), false)
 	g.button(screen, stepButton, g.label("单步", "Step"), false)
 }
 
@@ -157,13 +146,6 @@ func (g *Game) floor(screen *ebiten.Image) {
 		arrow(screen, pair[0], pair[1], orange)
 	}
 
-	g.counter(screen, rectangle{65, 220, 125, 85}, g.label("收银 01", "PAY 01"), g.label("付款出口", "CHECKOUT"), color.NRGBA{226, 235, 250, 255})
-	second := color.NRGBA{226, 235, 250, 255}
-	subtitle := g.label("付款出口", "CHECKOUT")
-	if g.options.Config.Cashiers == 1 {
-		second, subtitle = color.NRGBA{238, 240, 242, 255}, g.label("暂未开放", "CLOSED")
-	}
-	g.counter(screen, rectangle{65, 405, 125, 85}, g.label("收银 02", "PAY 02"), subtitle, second)
 	g.counter(screen, rectangle{270, 220, 205, 85}, g.label("主菜打饭区", "MAIN COURSES"), g.label("工作人员分餐 · 每人一份", "STAFF SERVICE / ONE MAIN"), color.NRGBA{251, 230, 214, 255})
 	g.counter(screen, rectangle{510, 220, 300, 85}, g.label("前菜 · 甜点自取区", "STARTERS / DESSERTS"), g.label("自行选择 · 按库存领取", "SELF SERVICE"), color.NRGBA{221, 240, 232, 255})
 	for i := 0; i < 8; i++ {
@@ -186,12 +168,12 @@ func (g *Game) floor(screen *ebiten.Image) {
 	}
 
 	g.text(screen, g.label("室内排队区", "INDOOR QUEUE"), 861, 555, 16, ink)
-	g.text(screen, fmt.Sprintf(g.label("容量 %d 人", "Capacity %d"), g.options.Config.Capacities.Inside), 861, 580, 12, muted)
+	g.text(screen, fmt.Sprintf(g.label("容量 %d 人", "Capacity %d"), environment.IndoorCapacity), 861, 580, 12, muted)
 	line(screen, point{800, 675}, point{935, 675}, 3, border)
 	line(screen, point{1005, 675}, point{1040, 675}, 3, border)
 	g.text(screen, g.label("入口", "ENTRY"), 946, 650, 13, orange)
 	g.rounded(screen, rectangle{827, 692, 214, 146}, 10, color.NRGBA{244, 246, 249, 255})
-	g.text(screen, fmt.Sprintf(g.label("室外队列 · %d 人上限", "OUTDOOR / MAX %d"), g.options.Config.Capacities.Outside), 842, 808, 12, muted)
+	g.text(screen, fmt.Sprintf(g.label("室外队列 · %d 人上限", "OUTDOOR / MAX %d"), environment.OutdoorCapacity), 842, 808, 12, muted)
 
 	g.text(screen, g.label("用餐区", "DINING AREA"), 92, 685, 22, ink)
 	g.text(screen, g.label("付款后前往此处 · 座位与用餐尚未模拟", "After payment / seating is not modeled yet"), 92, 720, 13, muted)
@@ -208,8 +190,12 @@ func (g *Game) floor(screen *ebiten.Image) {
 
 	// 空心点标出各区可占用的位置，实心点代表真实学生。
 	for _, zone := range g.snapshot.Zones {
-		for i := 0; i < zone.Capacity; i++ {
-			p := slot(zone.Area, i, zone.Capacity)
+		capacity := zone.Capacity
+		if zone.Area == agents.Payment {
+			capacity = environment.MaxCashiers
+		}
+		for i := 0; i < capacity; i++ {
+			p := slot(zone.Area, i, capacity)
 			g.strokeCircle(screen, float32(p.x), float32(p.y), 4, 1, border)
 		}
 	}
@@ -238,6 +224,9 @@ func (g *Game) people(screen *ebiten.Image) {
 		} else {
 			p = point{166, 248 + float64(cashierIndex)*185}
 			cashierIndex++
+			if !worker.Open && worker.StudentID == 0 {
+				continue
+			}
 		}
 		fill := muted
 		if worker.StudentID != 0 {
@@ -372,4 +361,28 @@ func (g *Game) inspector(screen *ebiten.Image) {
 		main = selected.Meal.Main.Name
 	}
 	g.text(screen, g.fit(main, 14, 295), 1100, 665, 14, ink)
+}
+
+func (g *Game) drawFPS(screen *ebiten.Image) {
+	g.text(screen, fmt.Sprintf("%.0f / %d FPS", ebiten.ActualFPS(), FPSLimit), 515, 33, 13, muted)
+}
+
+// 收银状态会在运行中变化，因此单独绘制，不放进静态平面图缓存。
+func (g *Game) cashierCounters(screen *ebiten.Image) {
+	index := 0
+	for _, worker := range g.snapshot.Workers {
+		if worker.Staff.Role != agents.Cashier {
+			continue
+		}
+		tint, subtitle := color.NRGBA{226, 235, 250, 255}, g.label("付款出口", "CHECKOUT")
+		if !worker.Open {
+			tint, subtitle = color.NRGBA{238, 240, 242, 255}, g.label("已关闭", "CLOSED")
+			if worker.StudentID != 0 {
+				subtitle = g.label("结完本单关闭", "FINISHING")
+			}
+		}
+		g.counter(screen, rectangle{65, 220 + float32(index)*185, 125, 85},
+			fmt.Sprintf(g.label("收银 %02d", "PAY %02d"), index+1), subtitle, tint)
+		index++
+	}
 }

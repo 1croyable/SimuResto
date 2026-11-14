@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"os/signal"
 	"text/tabwriter"
@@ -17,109 +15,29 @@ import (
 	environment "simuresto/SimuResto/Environment"
 )
 
-func main() {
-	os.Exit(run())
-}
+func main() { os.Exit(run()) }
 
 func run() int {
-	config := environment.DefaultConfig()
-	gui := flag.Bool("gui", false, "open the graphical setup screen")
-	guiOptions := graphicalFlags()
-	count := flag.Int("students", 80, "number of students")
-	seed := flag.Int64("seed", config.Seed, "seed for student profiles and meal choices")
-	temperature := flag.Float64("temperature", float64(agents.DefaultTemperature), "student choice temperature (0 selects the highest score)")
-	arrivalInterval := flag.Duration("arrival-interval", time.Second, "simulated time between arrivals (0 for a crowd)")
-	jsonOutput := flag.Bool("json", false, "print the complete report as JSON (durations in nanoseconds)")
-	events := flag.Bool("events", false, "print agent interactions before the summary")
-	flag.IntVar(&config.Capacities.Outside, "outdoor-capacity", config.Capacities.Outside, "outdoor queue capacity")
-	flag.IntVar(&config.Capacities.Inside, "indoor-capacity", config.Capacities.Inside, "indoor queue capacity")
-	flag.IntVar(&config.Capacities.SelfService, "self-capacity", config.Capacities.SelfService, "self-service area capacity")
-	flag.IntVar(&config.Capacities.MainService, "main-capacity", config.Capacities.MainService, "main-service area capacity")
-	flag.IntVar(&config.Capacities.Payment, "payment-capacity", config.Capacities.Payment, "payment area capacity")
-	flag.IntVar(&config.Servers, "servers", config.Servers, "main-course servers")
-	flag.IntVar(&config.Cashiers, "cashiers", config.Cashiers, "cashiers")
-	flag.IntVar(&config.MaxSelfServiceItems, "max-self-items", config.MaxSelfServiceItems, "maximum sides per student in total")
-	flag.IntVar(&config.MaxStartersPerStudent, "max-starters", config.MaxStartersPerStudent, "maximum starters per student")
-	flag.IntVar(&config.MaxDessertsPerStudent, "max-desserts", config.MaxDessertsPerStudent, "maximum desserts per student")
-	mainWeight := flag.Float64("main-weight", float64(config.SatisfactionWeights.Main), "relative satisfaction weight per main portion")
-	starterWeight := flag.Float64("starter-weight", float64(config.SatisfactionWeights.Starter), "relative satisfaction weight per starter portion")
-	dessertWeight := flag.Float64("dessert-weight", float64(config.SatisfactionWeights.Dessert), "relative satisfaction weight per dessert portion")
-	flag.DurationVar(&config.Tick, "tick", config.Tick, "logical clock step")
-	flag.DurationVar(&config.TickInterval, "tick-interval", config.TickInterval, "wall-clock delay per step (0 runs at full speed)")
-	flag.DurationVar(&config.MaxDuration, "max-duration", config.MaxDuration, "maximum simulated duration")
-	flag.DurationVar(&config.SelfServiceTime, "self-time", config.SelfServiceTime, "time to collect sides")
-	flag.DurationVar(&config.MainServiceTime, "main-time", config.MainServiceTime, "time to serve a main")
-	flag.DurationVar(&config.PaymentTime, "payment-time", config.PaymentTime, "time to pay")
-	starters := flag.Int("starters", 90, "total daily starter portions")
-	vegetarianMains := flag.Int("vegetarian-mains", 40, "total daily vegetarian main portions")
-	meatMains := flag.Int("meat-mains", 60, "total daily meat main portions")
-	desserts := flag.Int("desserts", 90, "total daily dessert portions")
+	gui := flag.Bool("gui", false, "打开图形界面")
 	flag.Parse()
-	if math.IsNaN(*temperature) || math.IsInf(*temperature, 0) || *temperature < 0 || *temperature > math.MaxFloat32 {
-		fmt.Fprintln(os.Stderr, "temperature must be finite, nonnegative and fit in float32")
-		return 2
-	}
 	if flag.NArg() != 0 {
-		fmt.Fprintln(os.Stderr, "unexpected positional arguments; use -help for options")
+		fmt.Fprintln(os.Stderr, "直接运行默认模拟，或使用 -gui 打开界面")
 		return 2
 	}
-	if *gui {
-		if *jsonOutput || *events {
-			fmt.Fprintln(os.Stderr, "-json and -events are only available in command-line mode")
-			return 2
-		}
-		applyGraphicalDefaults(&config, count)
-	}
-	config.Seed = *seed
-	config.SatisfactionWeights = environment.CourseWeights{
-		Main: float32(*mainWeight), Starter: float32(*starterWeight), Dessert: float32(*dessertWeight),
-	}
-	setMenuPortions(config.Menu, agents.Starter, true, *starters)
-	setMenuPortions(config.Menu, agents.Main, true, *vegetarianMains)
-	setMenuPortions(config.Menu, agents.Main, false, *meatMains)
-	setMenuPortions(config.Menu, agents.Dessert, true, *desserts)
-	generator := agents.StudentGenerator{
-		Seed:            *seed,
-		ArrivalInterval: *arrivalInterval,
-	}
-	students, err := generator.Generate(*count)
+	config := environment.DefaultConfig()
+	generator := agents.StudentGenerator{Seed: environment.RandomSeed, ArrivalInterval: environment.ArrivalInterval}
+	students, err := generator.Generate(environment.DefaultStudentCount)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		return 2
-	}
-	for i := range students {
-		students[i].Temperature = float32(*temperature)
+		return 1
 	}
 	if *gui {
-		guiOptions.Config, guiOptions.Students = config, students
-		guiOptions.ArrivalInterval = *arrivalInterval
-		if err := client.Run(guiOptions); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return 1
-		}
-		return 0
-	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-	report, err := engine.Run(ctx, config, students)
-	if err != nil && report.Metrics.AverageWaitByArea == nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 2
-	}
-	if *jsonOutput {
-		encoder := json.NewEncoder(os.Stdout)
-		encoder.SetIndent("", "  ")
-		if encodeErr := encoder.Encode(report); encodeErr != nil {
-			fmt.Fprintln(os.Stderr, encodeErr)
-			return 1
-		}
+		err = client.Run(client.Options{Config: config, Students: students})
 	} else {
-		if *events {
-			for _, event := range report.Events {
-				fmt.Printf("%7s  student=%-3d staff=%-2d %-21s %s -> %s %v\n",
-					event.Time, event.StudentID, event.StaffID, event.Signal, event.From, event.To, event.DishIDs)
-			}
-		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer stop()
+		var report engine.Report
+		report, err = engine.Run(ctx, config, students)
 		printSummary(report)
 	}
 	if err != nil {
@@ -127,27 +45,6 @@ func run() int {
 		return 1
 	}
 	return 0
-}
-
-// 同类菜品平均分配总库存，余数按菜单顺序分配；不依赖菜品所在的下标。
-// 负数原样传入配置校验，避免被整除截断为零。
-func setMenuPortions(menu []agents.Dish, course agents.Course, vegetarian bool, total int) {
-	var indices []int
-	for i, dish := range menu {
-		if dish.Course == course && (course != agents.Main || dish.Vegetarian == vegetarian) {
-			indices = append(indices, i)
-		}
-	}
-	for position, index := range indices {
-		if total < 0 {
-			menu[index].Portions = total
-			continue
-		}
-		menu[index].Portions = total / len(indices)
-		if position < total%len(indices) {
-			menu[index].Portions++
-		}
-	}
 }
 
 func printSummary(report engine.Report) {

@@ -12,7 +12,6 @@ import (
 
 func neutralMealConfig() environment.Config {
 	c := environment.DefaultConfig()
-	c.SelfServiceTime, c.MainServiceTime, c.PaymentTime = time.Second, time.Second, time.Second
 	c.Menu = []agents.Dish{
 		{ID: "main", Course: agents.Main, Vegetarian: true, Portions: 100, SatisfactionScore: 50},
 		{ID: "starter", Course: agents.Starter, Vegetarian: true, Portions: 100, SatisfactionScore: 50},
@@ -43,35 +42,27 @@ func runMeal(t *testing.T, c environment.Config, student agents.Student) Student
 }
 
 func TestMealSatisfactionUsesCenteredWeightedScores(t *testing.T) {
-	standard := environment.CourseWeights{Main: 2, Starter: 1, Dessert: 1}
 	for _, tc := range []struct {
 		name          string
 		scores        [3]float32 // 主菜、前菜、甜点。
-		weights       environment.CourseWeights
 		starters      int
 		desserts      int
 		initial, want float32
 	}{
-		{"中性", [3]float32{50, 50, 50}, standard, 1, 1, 50, 50},
-		{"最低分", [3]float32{0, 0, 0}, standard, 1, 1, 50, 0},
-		{"最高分", [3]float32{100, 100, 100}, standard, 1, 1, 50, 100},
-		{"混合加分", [3]float32{80, 50, 20}, standard, 1, 1, 50, 57.5},
-		{"混合扣分", [3]float32{20, 50, 80}, standard, 1, 1, 50, 42.5},
-		{"调整权重", [3]float32{80, 50, 20}, environment.CourseWeights{Main: 1, Starter: 1, Dessert: 4}, 1, 1, 50, 35},
-		{"等比例权重", [3]float32{80, 50, 20}, environment.CourseWeights{Main: 4, Starter: 2, Dessert: 2}, 1, 1, 50, 57.5},
-		{"大权重不溢出", [3]float32{80, 50, 20}, environment.CourseWeights{Main: 2e38, Starter: 1e38, Dessert: 1e38}, 1, 1, 50, 57.5},
-		{"两份甜点", [3]float32{80, 100, 20}, standard, 0, 2, 50, 50},
-		{"两份前菜", [3]float32{80, 20, 100}, standard, 2, 0, 50, 50},
-		{"零权重忽略主菜", [3]float32{0, 70, 90}, environment.CourseWeights{Starter: 1, Dessert: 1}, 1, 1, 50, 80},
-		{"实际餐品权重全零", [3]float32{0, 0, 0}, environment.CourseWeights{Dessert: 1}, 0, 0, 50, 50},
-		{"只拿主菜", [3]float32{80, 0, 0}, standard, 0, 0, 50, 80},
-		{"统一结算避免截断偏差", [3]float32{0, 100, 100}, standard, 1, 1, 95, 95},
-		{"总满意度上限", [3]float32{100, 100, 100}, standard, 1, 1, 95, 100},
-		{"总满意度下限", [3]float32{0, 0, 0}, standard, 1, 1, 5, 0},
+		{"中性", [3]float32{50, 50, 50}, 1, 1, 50, 50},
+		{"最低分", [3]float32{0, 0, 0}, 1, 1, 50, 0},
+		{"最高分", [3]float32{100, 100, 100}, 1, 1, 50, 100},
+		{"混合加分", [3]float32{80, 50, 20}, 1, 1, 50, 57.5},
+		{"混合扣分", [3]float32{20, 50, 80}, 1, 1, 50, 42.5},
+		{"两份甜点", [3]float32{80, 100, 20}, 0, 2, 50, 50},
+		{"两份前菜", [3]float32{80, 20, 100}, 2, 0, 50, 50},
+		{"只拿主菜", [3]float32{80, 0, 0}, 0, 0, 50, 80},
+		{"统一结算避免截断偏差", [3]float32{0, 100, 100}, 1, 1, 95, 95},
+		{"总满意度上限", [3]float32{100, 100, 100}, 1, 1, 95, 100},
+		{"总满意度下限", [3]float32{0, 0, 0}, 1, 1, 5, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c, student := neutralMealConfig(), mealStudent()
-			c.SatisfactionWeights = tc.weights
 			for i, score := range tc.scores {
 				c.Menu[i].SatisfactionScore = score
 			}
@@ -110,26 +101,28 @@ func TestFallbackMainParticipatesInMealScore(t *testing.T) {
 	c.Menu[0].Portions = 0
 	c.Menu[1].SatisfactionScore, c.Menu[2].SatisfactionScore = 60, 80
 	result := runMeal(t, c, mealStudent())
-	if result.Meal.Main.ID != "main" || result.Satisfaction != 60 || result.TotalWait != 0 || result.ExitTime != 3*time.Second {
-		t.Fatalf("兜底主菜也应服务一秒，再按整餐评分计分，不额外扣主菜缺货分：%+v", result)
+	if result.Meal.Main.ID != "main" || result.Satisfaction != 60 || result.TotalWait != 0 || result.ExitTime != environment.SelfServiceTime+environment.MainServiceTime+environment.PaymentTime {
+		t.Fatalf("兜底主菜使用固定服务时长，不额外扣主菜缺货分，畅通时也不计行走等待：%+v", result)
 	}
 }
 
 func TestFoodEffectIncludingShortagesIsCappedAt50(t *testing.T) {
 	for _, tc := range []struct {
-		name                                     string
-		mainScore, missingPenalty, initial, want float32
+		name                     string
+		mainScore, initial, want float32
+		wantedSides              int
 	}{
-		{"最低分加缺货", 0, 5, 80, 30},
-		{"很大的缺货扣分", 50, 100, 80, 30},
-		{"加减统一结算", 100, 5, 5, 45},
-		{"最多加五十分", 100, 0, 20, 70},
+		{"最低分加缺货", 0, 80, 30, 2},
+		{"缺两份配菜", 50, 80, 70, 2},
+		{"加减统一结算", 100, 5, 45, 2},
+		{"最多加五十分", 100, 20, 70, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c, student := neutralMealConfig(), mealStudent()
 			c.Menu[0].SatisfactionScore = tc.mainScore
 			c.Menu[1].Portions, c.Menu[2].Portions = 0, 0
-			c.MissingSidePenalty, student.Satisfaction = tc.missingPenalty, tc.initial
+			student.Satisfaction = tc.initial
+			student.StartersWanted, student.DessertsWanted = tc.wantedSides, 0
 			result := runMeal(t, c, student)
 			if result.Satisfaction != tc.want {
 				t.Fatalf("餐品总影响不能超过 ±50，实际 %v，期望 %v", result.Satisfaction, tc.want)
@@ -146,7 +139,12 @@ func TestFoodEffectIsSettledOnlyOnceAtMainDelivery(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer game.Close()
-	for step, want := range []float32{50, 40, 40} {
+	steps := int((environment.SelfServiceTime + environment.MainServiceTime + environment.PaymentTime) / c.Tick)
+	for step := 1; step <= steps; step++ {
+		want := float32(50)
+		if time.Duration(step)*c.Tick >= environment.SelfServiceTime+environment.MainServiceTime {
+			want = 40
+		}
 		if _, err := game.Step(context.Background()); err != nil {
 			t.Fatal(err)
 		}
@@ -177,21 +175,12 @@ func TestPersonalDishScoreOnlyAdjustsMismatchedMain(t *testing.T) {
 	}
 }
 
-func TestSatisfactionConfigRejectsInvalidScoresAndWeights(t *testing.T) {
+func TestSatisfactionConfigRejectsInvalidScores(t *testing.T) {
 	for _, score := range []float32{-1, 101, float32(math.NaN()), float32(math.Inf(1))} {
 		c := neutralMealConfig()
 		c.Menu[0].SatisfactionScore = score
 		if err := c.Validate(nil); err == nil {
 			t.Fatalf("应拒绝无效菜品评分 %v", score)
-		}
-	}
-	for _, weights := range []environment.CourseWeights{
-		{}, {Main: -1}, {Starter: float32(math.NaN())}, {Dessert: float32(math.Inf(1))},
-	} {
-		c := neutralMealConfig()
-		c.SatisfactionWeights = weights
-		if err := c.Validate(nil); err == nil {
-			t.Fatalf("应拒绝无效权重 %+v", weights)
 		}
 	}
 }

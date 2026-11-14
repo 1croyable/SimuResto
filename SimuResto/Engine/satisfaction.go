@@ -7,11 +7,6 @@ import (
 	environment "simuresto/SimuResto/Environment"
 )
 
-const (
-	preferenceMismatchPenalty float32 = 25
-	maxMealSatisfactionChange float32 = 50 // 所有餐品相关影响合计最多加减 50 分。
-)
-
 // 满意度使用 float32；时间使用 time.Duration。
 func (e *engine) adjustSatisfaction(student *studentState, amount float32) {
 	student.result.Satisfaction = min(100, max(0, student.result.Satisfaction+amount))
@@ -22,28 +17,28 @@ func (e *engine) adjustSatisfaction(student *studentState, amount float32) {
 func dishScoreForStudent(dish agents.Dish, preference agents.Preference) float32 {
 	score := dish.SatisfactionScore
 	if dish.Course == agents.Main && ((preference == agents.Vegetarian) != dish.Vegetarian) {
-		score -= preferenceMismatchPenalty
+		score -= environment.PreferenceMismatchPenalty
 	}
 	return max(0, score)
 }
 
 // mealSatisfactionChange 按实际领取的每一份菜的个人评分加权，再以 50 分为中性点。
 // 两份甜点各使用一次甜点权重；没拿的类别不计入分母。
-func mealSatisfactionChange(meal agents.Meal, weights environment.CourseWeights, preference agents.Preference) float32 {
-	// 汇总使用 float64，避免较大权重相乘时溢出；属性和结果仍用 float32。
+func mealSatisfactionChange(meal agents.Meal, preference agents.Preference) float32 {
+	// 主菜、前菜、甜点固定按 2:1:1 计算。
 	var weightedChange, totalWeight float64
 	add := func(dish agents.Dish, weight float32) {
 		weightedChange += float64(dishScoreForStudent(dish, preference)-50) * float64(weight)
 		totalWeight += float64(weight)
 	}
 	if meal.Main != nil {
-		add(*meal.Main, weights.Main)
+		add(*meal.Main, environment.MainWeight)
 	}
 	for _, dish := range meal.Starters {
-		add(dish, weights.Starter)
+		add(dish, environment.StarterWeight)
 	}
 	for _, dish := range meal.Desserts {
-		add(dish, weights.Dessert)
+		add(dish, environment.DessertWeight)
 	}
 	if totalWeight == 0 {
 		return 0
@@ -54,9 +49,9 @@ func mealSatisfactionChange(meal agents.Meal, weights environment.CourseWeights,
 // scoreMeal 在主菜交付时结算一次，配菜缺货也纳入整餐的 ±50 分上限。
 // 统一结算避免分次加减、分别截断造成顺序偏差；排队扣分不属于餐品影响。
 func (e *engine) scoreMeal(student *studentState) {
-	change := mealSatisfactionChange(student.result.Meal, e.config.SatisfactionWeights, student.result.Student.Preference)
-	change -= float32(student.missingSides) * e.config.MissingSidePenalty
-	change = min(maxMealSatisfactionChange, max(-maxMealSatisfactionChange, change))
+	change := mealSatisfactionChange(student.result.Meal, student.result.Student.Preference)
+	change -= float32(student.missingSides) * environment.MissingSidePenalty
+	change = min(environment.MaxMealSatisfactionChange, max(-environment.MaxMealSatisfactionChange, change))
 	e.adjustSatisfaction(student, change)
 }
 
@@ -73,9 +68,9 @@ func (e *engine) countWaiting(step time.Duration) {
 		}
 		student.result.Waiting[area] += step
 		student.result.TotalWait += step
-		loss := e.config.IndoorLossPerSecond
+		loss := environment.IndoorLossPerSecond
 		if area == agents.Outside {
-			loss = e.config.OutdoorLossPerSecond
+			loss = environment.OutdoorLossPerSecond
 		}
 		e.adjustSatisfaction(student, -loss*float32(step.Seconds()))
 	}

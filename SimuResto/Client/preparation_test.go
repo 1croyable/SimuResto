@@ -1,20 +1,21 @@
 package client
 
 import (
-	agents "simuresto/SimuResto/Agents"
+	"math"
 	"testing"
+
+	agents "simuresto/SimuResto/Agents"
 )
 
 func TestPreparationPreservesIndividualPortionsAndScores(t *testing.T) {
 	g := settingsGame()
 	g.addPreparation()
 	index := len(g.preparation) - 1
-	for g.preparation[index].dish.Components.Protein.ContainsMeat {
-		g.cycleIngredient(index, 2)
-	}
-	g.preparation[index].fields = [4]string{"60", "30", "90", "7"}
-	g.preparation[0].fields[3] = "3"
-	g.syncPreparationTotals()
+	g.selectIngredient(index, 0, 3) // Couscous，固定 20 分。
+	g.selectIngredient(index, 1, 3) // 炖胡萝卜，固定 45 分。
+	g.selectIngredient(index, 2, 5) // 煎豆腐，固定 50 分，属于素食。
+	g.preparation[index].portions = "7"
+	g.preparation[0].portions = "3"
 	want, err := g.preparedMainDishes()
 	if err != nil {
 		t.Fatal(err)
@@ -37,8 +38,8 @@ func TestPreparationPreservesIndividualPortionsAndScores(t *testing.T) {
 			t.Fatal("组合没有进入库存")
 		}
 	}
-	if want[index].SatisfactionScore != 70 || !want[index].Vegetarian {
-		t.Fatal("新组合评分或植物肉分类错误")
+	if math.Abs(float64(want[index].SatisfactionScore)-235.0/6) > 0.0001 || !want[index].Vegetarian {
+		t.Fatal("新组合应按固定食材评分得到约 39.17 分，且属于素食")
 	}
 	g.openSettings()
 	reloaded, err := g.preparedMainDishes()
@@ -53,15 +54,10 @@ func TestPreparationPreservesIndividualPortionsAndScores(t *testing.T) {
 }
 
 func TestPreparationRejectsInvalidInputBeforeStarting(t *testing.T) {
-	for _, tc := range []struct {
-		column int
-		value  string
-	}{
-		{0, "NaN"}, {1, "101"}, {2, "-1"}, {2, ""}, {3, "1.5"}, {3, "-1"},
-	} {
+	for _, value := range []string{"NaN", "10001", "-1", "", "1.5"} {
 		g := settingsGame()
-		g.preparation[0].fields[tc.column] = tc.value
-		if g.startConfigured() == nil || g.simulationGame != nil {
+		g.preparation[0].portions = value
+		if g.startConfigured() == nil || g.simulationGame != nil || g.settingsTab != preparationTab {
 			t.Fatal("错误备餐不能启动模拟")
 		}
 	}
@@ -77,7 +73,6 @@ func TestPreparationSupportsEmptyMenuAndUniqueIDs(t *testing.T) {
 		t.Fatal("组合 ID 重复")
 	}
 	g.preparation = nil
-	g.syncPreparationTotals()
 	if err := g.startConfigured(); err != nil {
 		t.Fatal(err)
 	}

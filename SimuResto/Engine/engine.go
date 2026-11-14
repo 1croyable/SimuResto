@@ -39,7 +39,7 @@ type simulationStats struct {
 // 协调器独占队列、库存和结果状态的写入权限。
 // 智能体通过 channel 通信。
 type engine struct {
-	config environment.Config // 本轮模拟的规则、容量、服务时长和菜单。
+	config environment.Config // 本轮模拟的时间设置、收银数量和菜单。
 	now    time.Duration      // 从模拟开始累计经过的模拟时间，不是现实中的钟表时间。
 
 	students         []*studentState       // 全体学生的运行状态，保留输入顺序，包含未到达及已结束的学生。
@@ -68,11 +68,11 @@ func newEngine(config environment.Config, students []agents.Student) *engine {
 		stats:      simulationStats{peakOccupancy: make(map[agents.Area]int)},
 	}
 	capacities := []int{
-		config.Capacities.Outside, config.Capacities.Inside, config.Capacities.SelfService,
-		config.Capacities.MainService, config.Capacities.Payment,
+		environment.OutdoorCapacity, environment.IndoorCapacity, environment.SelfServiceCapacity,
+		environment.MainServiceCapacity, config.Cashiers,
 	}
 	for i, area := range agents.ServiceRoute() {
-		e.queues[area], _ = environment.NewQueue(capacities[i]) // 容量已在启动前校验。
+		e.queues[area], _ = environment.NewQueue(capacities[i]) // 固定区域容量及已校验的收银数量。
 		e.stats.peakOccupancy[area] = 0
 	}
 	for _, student := range students {
@@ -89,7 +89,7 @@ func newEngine(config environment.Config, students []agents.Student) *engine {
 		e.agentWG.Add(1)
 		go func() {
 			defer e.agentWG.Done()
-			runStudent(student, config.Seed, state.agent)
+			runStudent(student, environment.RandomSeed, state.agent)
 		}()
 	}
 
@@ -97,10 +97,10 @@ func newEngine(config environment.Config, students []agents.Student) *engine {
 		return e.arrivalStudent[i].result.Student.ArrivalTime < e.arrivalStudent[j].result.Student.ArrivalTime
 	})
 
-	for i := 0; i < config.Servers+config.Cashiers; i++ {
-		staff := agents.Staff{ID: i + 1, Role: agents.Server, ServiceTime: config.MainServiceTime}
-		if i >= config.Servers {
-			staff.Role, staff.ServiceTime = agents.Cashier, config.PaymentTime
+	for i := 0; i < environment.Servers+environment.MaxCashiers; i++ {
+		staff := agents.Staff{ID: i + 1, Role: agents.Server, ServiceTime: environment.MainServiceTime}
+		if i >= environment.Servers {
+			staff.Role, staff.ServiceTime = agents.Cashier, environment.PaymentTime
 		}
 		state := &staffState{
 			result: StaffResult{Staff: staff},

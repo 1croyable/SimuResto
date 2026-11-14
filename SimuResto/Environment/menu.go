@@ -17,7 +17,7 @@ func DefaultMenu() []agents.Dish {
 			Name:              "Taboulé", // 库斯库斯凉拌沙拉。
 			Course:            agents.Starter,
 			Vegetarian:        true,
-			Portions:          23,
+			Portions:          StarterPortions / 4,
 			SatisfactionScore: 65,
 		},
 		{
@@ -25,7 +25,7 @@ func DefaultMenu() []agents.Dish {
 			Name:              "Chou rouge", // 红甘蓝沙拉。
 			Course:            agents.Starter,
 			Vegetarian:        true,
-			Portions:          23,
+			Portions:          StarterPortions / 4,
 			SatisfactionScore: 40,
 		},
 		{
@@ -33,7 +33,7 @@ func DefaultMenu() []agents.Dish {
 			Name:              "Salade de pois chiche", // 鹰嘴豆沙拉。
 			Course:            agents.Starter,
 			Vegetarian:        true,
-			Portions:          22,
+			Portions:          StarterPortions / 4,
 			SatisfactionScore: 65,
 		},
 		{
@@ -41,7 +41,7 @@ func DefaultMenu() []agents.Dish {
 			Name:              "Salade de riz au thon", // 金枪鱼米饭沙拉。
 			Course:            agents.Starter,
 			Vegetarian:        false,
-			Portions:          22,
+			Portions:          StarterPortions / 4,
 			SatisfactionScore: 75,
 		},
 	}
@@ -53,7 +53,7 @@ func DefaultMenu() []agents.Dish {
 			Name:              "Fruits de saison", // 时令水果。
 			Course:            agents.Dessert,
 			Vegetarian:        true,
-			Portions:          23,
+			Portions:          DessertPortions / 4,
 			SatisfactionScore: 50,
 		},
 		{
@@ -61,7 +61,7 @@ func DefaultMenu() []agents.Dish {
 			Name:              "Yaourts variés", // 什锦口味酸奶。
 			Course:            agents.Dessert,
 			Vegetarian:        true,
-			Portions:          23,
+			Portions:          DessertPortions / 4,
 			SatisfactionScore: 55,
 		},
 		{
@@ -69,7 +69,7 @@ func DefaultMenu() []agents.Dish {
 			Name:              "Compote", // 水果泥。
 			Course:            agents.Dessert,
 			Vegetarian:        true,
-			Portions:          22,
+			Portions:          DessertPortions / 4,
 			SatisfactionScore: 65,
 		},
 		{
@@ -77,9 +77,16 @@ func DefaultMenu() []agents.Dish {
 			Name:              "Brownie", // 巧克力布朗尼。
 			Course:            agents.Dessert,
 			Vegetarian:        true,
-			Portions:          22,
+			Portions:          DessertPortions / 4,
 			SatisfactionScore: 80,
 		},
 	}...)
+	// 前菜和甜点各有四种，均分固定库存，余数分给排在前面的菜品。
+	for i := 0; i < StarterPortions%4; i++ {
+		menu[i].Portions++
+	}
+	for i := 0; i < DessertPortions%4; i++ {
+		menu[len(menu)-4+i].Portions++
+	}
 	return menu
 }

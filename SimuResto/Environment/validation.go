@@ -3,60 +3,17 @@ package environment
 import (
 	"fmt"
 	"math"
-	"time"
 
 	agents "simuresto/SimuResto/Agents"
 )
 
 // Validate 检查模拟配置、菜单及学生资料是否有效。
 func (c Config) Validate(students []agents.Student) error {
-	for _, item := range []struct {
-		name  string
-		value int
-	}{
-		{"outside capacity", c.Capacities.Outside}, {"inside capacity", c.Capacities.Inside},
-		{"self-service capacity", c.Capacities.SelfService}, {"main-service capacity", c.Capacities.MainService},
-		{"payment capacity", c.Capacities.Payment}, {"servers", c.Servers}, {"cashiers", c.Cashiers},
-	} {
-		if item.value <= 0 {
-			return fmt.Errorf("%s must be positive", item.name)
-		}
+	if c.Tick <= 0 || c.MaxDuration <= 0 {
+		return fmt.Errorf("逻辑步长和最长模拟时间必须大于零")
 	}
-	for _, item := range []struct {
-		name  string
-		value time.Duration
-	}{
-		{"tick", c.Tick}, {"maximum duration", c.MaxDuration}, {"self-service time", c.SelfServiceTime},
-		{"main-service time", c.MainServiceTime}, {"payment time", c.PaymentTime},
-	} {
-		if item.value <= 0 {
-			return fmt.Errorf("%s must be positive", item.name)
-		}
-	}
-	if c.TickInterval < 0 {
-		return fmt.Errorf("tick interval cannot be negative")
-	}
-	if c.MaxStartersPerStudent < 0 || c.MaxDessertsPerStudent < 0 || c.MaxSelfServiceItems < 0 {
-		return fmt.Errorf("self-service limits cannot be negative")
-	}
-	for _, value := range []float32{
-		c.IndoorLossPerSecond, c.OutdoorLossPerSecond, c.MissingSidePenalty,
-	} {
-		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) || value < 0 {
-			return fmt.Errorf("satisfaction adjustments must be finite and nonnegative")
-		}
-	}
-	if c.OutdoorLossPerSecond <= c.IndoorLossPerSecond {
-		return fmt.Errorf("outdoor satisfaction loss must be greater than indoor loss")
-	}
-	weights := c.SatisfactionWeights
-	for _, weight := range []float32{weights.Main, weights.Starter, weights.Dessert} {
-		if math.IsNaN(float64(weight)) || math.IsInf(float64(weight), 0) || weight < 0 {
-			return fmt.Errorf("satisfaction weights must be finite and nonnegative")
-		}
-	}
-	if weights == (CourseWeights{}) {
-		return fmt.Errorf("at least one satisfaction weight must be positive")
+	if c.Cashiers < 1 || c.Cashiers > MaxCashiers {
+		return fmt.Errorf("收银窗口数量只能为 1 或 2")
 	}
 	dishIDs := make(map[string]bool)
 	for _, dish := range c.Menu {

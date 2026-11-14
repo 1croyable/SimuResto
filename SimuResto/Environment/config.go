@@ -6,69 +6,53 @@ import (
 	agents "simuresto/SimuResto/Agents"
 )
 
-type Capacities struct {
-	Outside     int
-	Inside      int
-	SelfService int
-	MainService int
-	Payment     int
-}
+// 食堂的固定规则集中在这里，界面只调整人数、收银数量、模拟时间和主菜备餐。
+const (
+	DefaultStudentCount        = 300
+	RandomSeed           int64 = 42
+	ArrivalInterval            = time.Second
+	DefaultTick                = 250 * time.Millisecond
+	DefaultMaxDuration         = 15 * time.Minute
+	DefaultPlaybackSpeed       = 4.0
+	DefaultCashiers            = 2
+	MaxCashiers                = 2
 
-// CourseWeights 表示每一份菜在整餐评分中的相对权重。
-type CourseWeights struct {
-	Main    float32
-	Starter float32
-	Dessert float32
-}
+	OutdoorCapacity     = 50
+	IndoorCapacity      = 20
+	SelfServiceCapacity = 6
+	MainServiceCapacity = 3
+	Servers             = 2
+	SelfServiceTime     = 4 * time.Second
+	MainServiceTime     = 8 * time.Second
+	PaymentTime         = 4 * time.Second
 
-// Config 中的时长均为模拟时间，只有 TickInterval 表示真实播放间隔。
+	// CROUS 餐盘：一份主菜，前菜与甜点合计最多两份。
+	MaxSideItems                      = 2
+	MainWeight                float32 = 2
+	StarterWeight             float32 = 1
+	DessertWeight             float32 = 1
+	IndoorLossPerSecond       float32 = 0.08
+	OutdoorLossPerSecond      float32 = 0.30
+	MissingSidePenalty        float32 = 5
+	PreferenceMismatchPenalty float32 = 25
+	MaxMealSatisfactionChange float32 = 50
+	StarterPortions                   = 90
+	DessertPortions                   = 90
+)
+
+// Config 只保留每轮可以改变的设置，收银窗口数可在运行中调整。
 type Config struct {
-	Capacities Capacities
-	Seed       int64 // 选菜随机种子；每名学生使用独立随机源。
-
-	// 时钟：Tick 为模拟步长，TickInterval 为真实播放间隔。
-	Tick         time.Duration
-	TickInterval time.Duration
-	MaxDuration  time.Duration
-
-	// 各环节服务时长与工作人员数量。
-	SelfServiceTime time.Duration
-	MainServiceTime time.Duration
-	PaymentTime     time.Duration
-	Servers         int
-	Cashiers        int
-
-	// 前菜和甜点共享总份数，可以只取其中一类；主菜最多一份。
-	MaxStartersPerStudent int
-	MaxDessertsPerStudent int
-	MaxSelfServiceItems   int
-
-	// 菜品按权重计算整餐评分，50 分为中性；配菜缺货计入整餐，等待另计。
-	SatisfactionWeights  CourseWeights
-	IndoorLossPerSecond  float32
-	OutdoorLossPerSecond float32
-	MissingSidePenalty   float32
-	Menu                 []agents.Dish
+	Tick        time.Duration
+	MaxDuration time.Duration
+	Cashiers    int
+	Menu        []agents.Dish
 }
 
 func DefaultConfig() Config {
 	return Config{
-		Seed:                  42,
-		Capacities:            Capacities{Outside: 50, Inside: 20, SelfService: 6, MainService: 3, Payment: 1},
-		Tick:                  time.Second,
-		MaxDuration:           15 * time.Minute,
-		SelfServiceTime:       4 * time.Second,
-		MainServiceTime:       8 * time.Second,
-		PaymentTime:           4 * time.Second,
-		Servers:               2,
-		Cashiers:              1,
-		MaxStartersPerStudent: 2,
-		MaxDessertsPerStudent: 2,
-		MaxSelfServiceItems:   2,
-		SatisfactionWeights:   CourseWeights{Main: 2, Starter: 1, Dessert: 1},
-		IndoorLossPerSecond:   0.08,
-		OutdoorLossPerSecond:  0.30,
-		MissingSidePenalty:    5,
-		Menu:                  DefaultMenu(),
+		Tick:        DefaultTick,
+		MaxDuration: DefaultMaxDuration,
+		Cashiers:    DefaultCashiers,
+		Menu:        DefaultMenu(),
 	}
 }

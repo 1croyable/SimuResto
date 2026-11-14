@@ -8,7 +8,7 @@ import (
 	agents "simuresto/SimuResto/Agents"
 )
 
-// MainIngredients 是备餐界面的食材选择，评分均为可调整的模拟设定。
+// MainIngredients 是备餐界面的食材选择，评分为固定的模拟设定，界面只选择食材和份数。
 type MainIngredients struct {
 	Staples    []agents.MainIngredient
 	Vegetables []agents.MainIngredient

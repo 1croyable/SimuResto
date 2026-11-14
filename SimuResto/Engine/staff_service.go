@@ -4,11 +4,16 @@ import (
 	"time"
 
 	agents "simuresto/SimuResto/Agents"
+	environment "simuresto/SimuResto/Environment"
 )
+
+func (e *engine) workerOpen(worker *staffState) bool {
+	return worker.result.Staff.Role == agents.Server || worker.result.Staff.ID <= environment.Servers+e.config.Cashiers
+}
 
 func (e *engine) assignStaff() {
 	for _, worker := range e.staff {
-		if worker.job != nil {
+		if worker.job != nil || !e.workerOpen(worker) {
 			continue
 		}
 		area := agents.MainService

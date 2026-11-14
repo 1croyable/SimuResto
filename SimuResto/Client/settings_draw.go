@@ -3,97 +3,105 @@ package client
 import (
 	"fmt"
 	"image/color"
+	"strconv"
 
 	"github.com/hajimehoshi/ebiten/v2"
+
+	environment "simuresto/SimuResto/Environment"
 )
+
+func (g *Game) drawNumberInput(screen *ebiten.Image, box rectangle, value, unit string, focused, replace bool) {
+	outline, fill := border, white
+	if focused {
+		outline, fill = orange, color.NRGBA{255, 248, 241, 255}
+	}
+	g.rounded(screen, box, 8, outline)
+	g.rounded(screen, rectangle{box.x + 1.5, box.y + 1.5, box.w - 3, box.h - 3}, 7, fill)
+	if focused && replace && value != "" {
+		g.rounded(screen, rectangle{box.x + 8, box.y + 6, min(box.w-16, float32(len(value))*12+8), 30}, 3, color.NRGBA{251, 225, 201, 255})
+	}
+	g.text(screen, g.fit(value, 20, float64(box.w-24)), float64(box.x+12), float64(box.y+8), 20, ink)
+	if unit != "" {
+		g.text(screen, unit, float64(box.x+box.w-44), float64(box.y+13), 13, muted)
+	}
+}
 
 func (g *Game) drawSettings(screen *ebiten.Image) {
 	screen.Fill(background)
 	g.rounded(screen, rectangle{25, 23, 45, 44}, 12, orange)
 	g.text(screen, "S", 37, 24, 30, white)
 	g.text(screen, "SimuResto", 84, 16, 29, ink)
-	g.text(screen, g.label("CROUS / 模拟参数设置", "CROUS / SCENARIO SETUP"), 85, 52, 12, muted)
+	g.text(screen, g.label("CROUS / 开餐准备", "CROUS / BEFORE SERVICE"), 85, 52, 12, muted)
 	g.drawFPS(screen)
-	g.text(screen, g.label("准备一个食堂午餐场景", "Build a lunch-service scenario"), 1080, 32, 17, ink)
 	g.panel(screen, rectangle{20, 90, 1044, 770})
-	g.text(screen, g.label("开始之前", "BEFORE YOU START"), 48, 111, 25, ink)
-	g.text(screen, g.label("点击数值直接输入，或用 + / − 调整。开始后才会启动学生和工作人员。", "Type a value or use + / -. Agents start only after you launch the simulation."), 48, 148, 13, muted)
+	g.text(screen, g.label("准备开餐", "PREPARE FOR LUNCH"), 48, 111, 25, ink)
+	g.text(screen, g.label("设置人数、窗口和模拟时间，准备好主菜后即可开始。", "Set students, cashiers and time, prepare the mains, then start."), 48, 148, 13, muted)
 	for i, tab := range settingTabs {
 		g.button(screen, settingTabBox(i), g.label(tab[0], tab[1]), g.settingsTab == i)
 	}
 	if g.settingsTab == preparationTab {
 		g.drawPreparation(screen)
-	}
-	for i := g.settingsTab * 8; i < min(g.settingsTab*8+8, len(settingSpecs)); i++ {
-		spec, box := settingSpecs[i], settingBox(i)
-		g.text(screen, g.label(spec.cn, spec.en), float64(box.x), float64(box.y-29), 15, ink)
-		outline := border
-		if i == g.focusedSetting {
-			outline = orange
+	} else {
+		for i, spec := range settingSpecs {
+			box := settingBox(i)
+			g.text(screen, g.label(spec.cn, spec.en), float64(box.x), float64(box.y-29), 15, ink)
+			g.drawNumberInput(screen, box, g.settingValues[i], spec.unit, i == g.focusedSetting, g.replaceSetting)
+			g.button(screen, rectangle{box.x + 354, box.y, 46, 46}, "−", false)
+			g.button(screen, rectangle{box.x + 410, box.y, 46, 46}, "+", false)
+			g.text(screen, fmt.Sprintf(g.label("范围 %s–%s", "Range %s–%s"), settingText(spec.minimum), settingText(spec.maximum)), float64(box.x), float64(box.y+52), 12, muted)
 		}
-		g.rounded(screen, box, 8, outline)
-		fill := white
-		if i == g.focusedSetting {
-			fill = color.NRGBA{255, 248, 241, 255}
-		}
-		g.rounded(screen, rectangle{box.x + 1.5, box.y + 1.5, box.w - 3, box.h - 3}, 7, fill)
-		value := g.settingValues[i]
-		if value == "" && i != g.focusedSetting {
-			value = "—"
-		}
-		if i == g.focusedSetting && g.replaceSetting {
-			g.rounded(screen, rectangle{box.x + 10, box.y + 8, min(272, float32(len(value))*13+15), 30}, 3, color.NRGBA{251, 225, 201, 255})
-		}
-		g.text(screen, value, float64(box.x+15), float64(box.y+9), 20, ink)
-		g.text(screen, spec.unit, float64(box.x+box.w-40), float64(box.y+13), 13, muted)
-		g.button(screen, rectangle{box.x + 354, box.y, 46, 46}, "−", false)
-		g.button(screen, rectangle{box.x + 410, box.y, 46, 46}, "+", false)
-		g.text(screen, fmt.Sprintf(g.label("范围 %s–%s", "Range %s–%s"), settingText(spec.minimum), settingText(spec.maximum)), float64(box.x), float64(box.y+52), 12, muted)
-	}
-	if g.settingsTab == int(mainWeight)/8 {
-		g.text(screen, g.label("50 分为中性：高于 50 加分，低于 50 扣分。", "50 is neutral: higher scores add satisfaction; lower scores subtract."), 48, 540, 17, ink)
-		g.text(screen, g.label("整餐变化 = 每份菜的（评分 − 50）按权重加权平均。", "Meal change = weighted average of each portion's (score - 50)."), 48, 580, 15, muted)
-		g.text(screen, g.label("默认主菜 : 前菜 : 甜点 = 2 : 1 : 1；两份甜点各计算一次权重。", "Default main : starter : dessert = 2 : 1 : 1; each portion counts separately."), 48, 620, 15, muted)
-		g.text(screen, g.label("前菜和甜点默认合计两份，可以选 2 + 0、1 + 1 或 0 + 2。", "Two sides by default: 2 starters, one of each, or 2 desserts."), 48, 660, 15, muted)
-		g.text(screen, g.label("主菜偏好不符先减 25 分，最低为 0；餐品总影响含缺货最多 ±50 分。", "Mismatched main: score -25, minimum 0. Total food effect including shortages: +/-50."), 48, 700, 15, muted)
-		g.text(screen, g.label("温度 0 选最高分；1 为默认；越高越随机。此处统一设置所有学生。", "Temperature: 0 picks the best, 1 is default, higher is more random. Applies to all students."), 48, 740, 13, muted)
+		g.rounded(screen, rectangle{48, 514, 976, 220}, 12, background)
+		g.text(screen, g.label("本次模拟使用固定食堂规则", "FIXED CAFETERIA RULES"), 68, 532, 18, ink)
+		g.text(screen, g.label("每人 1 份主菜；前菜 + 甜点合计最多 2 份，可自由搭配。", "One main per student; up to two starters / desserts in any combination."), 68, 572, 15, ink)
+		g.text(screen, g.label("整餐权重：主菜 : 前菜 : 甜点 = 2 : 1 : 1；50 分为中性。", "Meal weights: main : starter : dessert = 2 : 1 : 1; score 50 is neutral."), 68, 606, 15, muted)
+		g.text(screen, g.label("所有菜品合计最多加 / 扣 50 分，学生满意度保持在 0–100。", "Total food effect is limited to +/-50; satisfaction stays within 0–100."), 68, 640, 15, muted)
+		g.text(screen, g.label("收银窗口数量与播放速度，可以在模拟运行中随时调整。", "Change the number of open cashiers and playback speed during the simulation."), 68, 683, 15, ink)
 	}
 	if g.settingsError != "" {
 		g.rounded(screen, rectangle{48, 768, 976, 52}, 8, color.NRGBA{253, 235, 235, 255})
 		g.text(screen, g.fit(g.settingsError, 15, 942), 64, 781, 15, red)
 	} else {
-		if g.settingsTab == preparationTab || g.settingsTab == 1 {
-			g.text(screen, g.label("主菜份数在备餐页逐项设置；修改素食或荤食总库存，会将该类份数均分。", "Set portions per combination; changing a main stock total redistributes that category evenly."), 48, 781, 14, muted)
-		} else {
-			g.text(screen, g.label("小提示：到达间隔为 0 可模拟集中到达；室外扣分必须高于室内。", "Tip: arrival interval 0 creates a crowd; outdoor loss must exceed indoor loss."), 48, 781, 14, muted)
-		}
+		g.text(screen, g.label("点击数字直接输入，也可以用 + / − 调整；按 Enter 开始。", "Click a number to type, or use + / -. Press Enter to start."), 48, 786, 14, muted)
 	}
+	g.drawSetupSummary(screen)
+	if g.ingredientPicker >= 0 {
+		g.drawIngredientPicker(screen)
+	}
+}
+
+func (g *Game) drawSetupSummary(screen *ebiten.Image) {
 	g.panel(screen, rectangle{1080, 90, 340, 770})
-	g.text(screen, g.label("场景预览", "SCENARIO PREVIEW"), 1100, 112, 20, ink)
+	g.text(screen, g.label("开餐概览", "SERVICE OVERVIEW"), 1100, 112, 20, ink)
 	g.text(screen, g.settingValues[studentCount], 1100, 154, 46, ink)
 	g.text(screen, g.label("名学生", "STUDENTS"), 1102, 216, 13, muted)
-	g.text(screen, fmt.Sprintf(g.label("每 %s 秒到达一人", "One arrival every %s seconds"), g.settingValues[arrivalSeconds]), 1100, 252, 15, ink)
-	g.text(screen, fmt.Sprintf(g.label("%s 名打饭人员 · %s 个收银窗口", "%s servers / %s payment windows"), g.settingValues[serverCount], g.settingValues[cashierCount]), 1100, 286, 14, muted)
+	g.text(screen, fmt.Sprintf(g.label("逻辑步长 %s 秒", "Logical step %s s"), g.settingValues[tickSeconds]), 1100, 254, 15, ink)
+	g.text(screen, fmt.Sprintf(g.label("最长模拟 %s 分钟", "Duration limit %s min"), g.settingValues[maxMinutes]), 1100, 286, 15, ink)
 	line(screen, point{1100, 326}, point{1400, 326}, 1, border)
-	g.text(screen, g.label("服务路线 / 各区容量", "ROUTE / CAPACITY"), 1100, 347, 14, ink)
-	for i, row := range []struct {
-		cn, en string
-		key    settingKey
-	}{
-		{"室外队列", "Outdoor", outdoorCapacity}, {"室内队列", "Indoor", indoorCapacity}, {"前菜甜点区", "Self service", selfCapacity}, {"主菜区", "Main service", mainCapacity}, {"付款区", "Payment", cashierCount},
-	} {
-		y := float64(390 + i*38)
-		g.fillCircle(screen, 1108, float32(y+10), 4, orange)
-		if i < 4 {
-			line(screen, point{1108, y + 17}, point{1108, y + 31}, 1.5, border)
+	total, vegetarian, valid := 0, 0, true
+	for _, row := range g.preparation {
+		count, err := strconv.Atoi(row.portions)
+		if err != nil || count < 0 || count > 10000 {
+			valid = false
+			continue
 		}
-		g.text(screen, g.label(row.cn, row.en), 1126, y, 14, muted)
-		g.text(screen, g.settingValues[row.key], 1360, y, 15, ink)
+		total += count
+		if row.dish.Vegetarian {
+			vegetarian += count
+		}
 	}
-	line(screen, point{1100, 590}, point{1400, 590}, 1, border)
-	g.text(screen, fmt.Sprintf(g.label("播放速度  %s 倍", "Playback  %sx"), g.settingValues[playbackSpeed]), 1100, 614, 14, ink)
-	g.text(screen, fmt.Sprintf(g.label("随机种子  %s", "Seed  %s"), g.settingValues[randomSeed]), 1100, 646, 14, muted)
-	g.button(screen, defaultsButton, g.label("恢复默认参数", "Restore defaults"), false)
+	g.text(screen, g.label("主菜备餐", "PREPARED MAINS"), 1100, 347, 16, ink)
+	if valid {
+		g.text(screen, fmt.Sprintf(g.label("%d 份 / %d 种组合", "%d portions / %d combinations"), total, len(g.preparation)), 1100, 381, 20, orange)
+		g.text(screen, fmt.Sprintf(g.label("素食 %d 份 · 荤食 %d 份", "Vegetarian %d / meat %d"), vegetarian, total-vegetarian), 1100, 420, 14, muted)
+	} else {
+		g.text(screen, g.label("请检查备餐份数", "Check the portion counts"), 1100, 381, 18, red)
+	}
+	g.text(screen, g.label("主菜售罄后自动供应兜底素食。", "Fallback vegetarian mains never run out."), 1100, 458, 13, muted)
+	line(screen, point{1100, 500}, point{1400, 500}, 1, border)
+	g.text(screen, fmt.Sprintf(g.label("前菜 %d 份 · 甜点 %d 份", "Starters %d / desserts %d"), environment.StarterPortions, environment.DessertPortions), 1100, 523, 15, ink)
+	g.text(screen, fmt.Sprintf(g.label("开放收银 %s 个 · 播放 %gx", "%s cashiers open / speed %gx"), g.settingValues[cashierCount], g.speed), 1100, 562, 15, ink)
+	g.text(screen, g.label("运行中可切换 1 / 2 个窗口。", "Switch between 1 / 2 cashiers while running."), 1100, 595, 13, muted)
+	g.text(screen, g.label("关闭窗口会先完成当前付款。", "Closing a cashier finishes its current payment."), 1100, 624, 13, muted)
+	g.button(screen, defaultsButton, g.label("恢复默认设置与菜单", "Restore defaults and menu"), false)
 	g.button(screen, startButton, g.label("开始模拟  →", "Start simulation  >"), true)
-	g.text(screen, g.label("Tab 切换输入框    ↑ ↓ 调整数值    Enter 开始模拟    Esc 退出", "Tab Next field    Up / Down Adjust    Enter Start    Esc Exit"), 26, 873, 13, muted)
 }

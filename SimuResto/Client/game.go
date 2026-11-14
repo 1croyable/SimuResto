@@ -3,13 +3,9 @@ package client
 import (
 	"context"
 	"errors"
-	"fmt"
 	"image"
 	"image/color"
-	"image/png"
 	"math"
-	"os"
-	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -21,18 +17,8 @@ import (
 )
 
 type Options struct {
-	Config              environment.Config
-	Students            []agents.Student
-	FontPath            string
-	Paused              bool
-	Speed               float64
-	Screenshot          string
-	CaptureAt           time.Duration
-	ArrivalInterval     time.Duration
-	AutoStart           bool
-	PerformanceDuration time.Duration
-	PerformanceUncapped bool
-	CPUProfile          string
+	Config   environment.Config
+	Students []agents.Student
 }
 
 type dot struct {
@@ -57,8 +43,6 @@ type Game struct {
 	dots               map[int]*dot
 	selected           int
 	notice             string
-	captured           bool
-	captureError       error
 	viewport           viewport
 	configuring        bool
 	settingValues      []string
@@ -69,36 +53,29 @@ type Game struct {
 	preparation        []preparationRow
 	preparationPage    int
 	preparationFocus   int
+	ingredientPicker   int // -1 表示关闭；其余为行号 × 3 + 食材列号。
 	preparationReplace bool
 	frame              frameLimiter
 	floorLayer         *ebiten.Image
 	dotSprites         map[color.NRGBA]*ebiten.Image
-	performance        *performanceStats
 	renderSize         image.Point
 	roundedSprites     map[int]*roundedSprite
 	circleSprites      map[circleKey]*ebiten.Image
 }
 
 func New(options Options) (*Game, error) {
-	if options.Config.Capacities.Payment < 1 || options.Config.Capacities.Payment > 2 || options.Config.Cashiers > 2 {
-		return nil, fmt.Errorf("图形平面图支持 1–2 个收银位置和收银员")
+	if err := options.Config.Validate(options.Students); err != nil {
+		return nil, err
 	}
-	if math.IsNaN(options.Speed) || math.IsInf(options.Speed, 0) || options.Speed <= 0 || options.Speed > 32 {
-		return nil, fmt.Errorf("播放速度必须在 (0, 32] 之间")
-	}
-	font, chinese, err := loadFont(options.FontPath)
+	font, chinese, err := loadFont()
 	if err != nil {
 		return nil, err
 	}
-	game := &Game{options: options, font: font, chinese: chinese, speed: options.Speed}
-	game.populateSettings()
-	game.configuring = true
-	if options.AutoStart {
-		if err := game.reset(); err != nil {
-			return nil, err
-		}
-		game.paused = options.Paused
+	game := &Game{
+		options: options, font: font, chinese: chinese,
+		speed: environment.DefaultPlaybackSpeed, configuring: true,
 	}
+	game.populateSettings()
 	return game, nil
 }
 
@@ -138,18 +115,25 @@ func (g *Game) step() {
 	g.syncDots()
 }
 
+// 切换收银只更新当前模拟，不重新生成学生或清空库存。
+func (g *Game) toggleCashiers() error {
+	count := 3 - g.options.Config.Cashiers
+	if err := g.simulationGame.SetCashiers(count); err != nil {
+		return err
+	}
+	g.options.Config.Cashiers = count
+	g.snapshot = g.simulationGame.Snapshot()
+	g.syncDots()
+	g.notice = ""
+	return nil
+}
+
 func (g *Game) Update() error {
-	if g.performance != nil {
-		if g.performance.finished() {
-			g.performance.print()
-			return ebiten.Termination
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		if g.configuring && g.ingredientPicker >= 0 {
+			g.ingredientPicker = -1
+			return nil
 		}
-		defer g.performance.measureUpdate(time.Now())
-	}
-	if g.captureError != nil {
-		return g.captureError
-	}
-	if g.captured || inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		return ebiten.Termination
 	}
 	if g.configuring {
@@ -171,10 +155,8 @@ func (g *Game) Update() error {
 		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyC) || (clicked && cashierButton.contains(x, y)) {
-		count := 3 - g.options.Config.Capacities.Payment
-		g.options.Config.Capacities.Payment, g.options.Config.Cashiers = count, count
-		if err := g.reset(); err != nil {
-			return err
+		if err := g.toggleCashiers(); err != nil {
+			g.notice = err.Error()
 		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) || (clicked && speedButton.contains(x, y)) {
@@ -218,6 +200,13 @@ func (g *Game) syncDots() {
 	for _, zone := range g.snapshot.Zones {
 		for i, id := range zone.StudentIDs {
 			targets[id] = slot(zone.Area, i, zone.Capacity)
+		}
+	}
+	// 付款中的学生固定在实际接单窗口，关闭窗口时不会突然换位置。
+	for _, worker := range g.snapshot.Workers {
+		if worker.Staff.Role == agents.Cashier && worker.StudentID != 0 {
+			index := worker.Staff.ID - environment.Servers - 1
+			targets[worker.StudentID] = slot(agents.Payment, index, environment.MaxCashiers)
 		}
 	}
 	for _, student := range g.snapshot.Students {
@@ -281,26 +270,4 @@ func (g *Game) animate(delta float64) {
 			}
 		}
 	}
-}
-
-// 截图由实际 Ebitengine 帧导出，用于保存演示和检查渲染效果。
-func (g *Game) capture(screen *ebiten.Image) {
-	if g.options.Screenshot == "" || g.captured || (!g.configuring && g.snapshot.Duration < g.options.CaptureAt && !g.snapshot.Done) {
-		return
-	}
-	width, height := screen.Bounds().Dx(), screen.Bounds().Dy()
-	pixels := make([]byte, width*height*4)
-	screen.ReadPixels(pixels)
-	frame := &image.RGBA{Pix: pixels, Stride: width * 4, Rect: image.Rect(0, 0, width, height)}
-	file, err := os.Create(g.options.Screenshot)
-	if err != nil {
-		g.captureError = err
-		return
-	}
-	err = png.Encode(file, frame)
-	closeErr := file.Close()
-	if err == nil {
-		err = closeErr
-	}
-	g.captureError, g.captured = err, err == nil
 }

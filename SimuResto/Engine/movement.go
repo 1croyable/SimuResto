@@ -62,6 +62,8 @@ func (e *engine) moveForward() {
 
 				if area == agents.Payment {
 					queue.Dequeue()
+					// 关闭窗口后，已在付款的学生离开时才缩小容量。
+					_ = queue.Resize(max(e.config.Cashiers, queue.Len()))
 					student.result.Area = agents.NoArea
 					student.result.Status = agents.Completed
 					student.result.ExitTime = e.now

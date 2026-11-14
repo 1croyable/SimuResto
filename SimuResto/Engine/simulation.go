@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"time"
 
 	agents "simuresto/SimuResto/Agents"
 	environment "simuresto/SimuResto/Environment"
@@ -23,16 +22,6 @@ func Run(ctx context.Context, config environment.Config, students []agents.Stude
 		done, err := game.Step(ctx)
 		if done {
 			return game.Report(), err
-		}
-		if config.TickInterval > 0 && game.engine.now < config.MaxDuration {
-			timer := time.NewTimer(config.TickInterval)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				game.Close()
-				return game.Report(), ctx.Err()
-			case <-timer.C:
-			}
 		}
 	}
 }

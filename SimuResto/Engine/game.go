@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 
 	agents "simuresto/SimuResto/Agents"
 	environment "simuresto/SimuResto/Environment"
@@ -18,6 +19,23 @@ func NewGame(config environment.Config, students []agents.Student) (*Game, error
 		return nil, err
 	}
 	return &Game{engine: newEngine(config, students)}, nil
+}
+
+// SetCashiers 调整开放窗口数量，与 Step 一样由调用方串行调用。
+// 关闭的窗口会完成手中的付款，再停止接单；本轮时间和统计不重置。
+func (g *Game) SetCashiers(count int) error {
+	if count < 1 || count > environment.MaxCashiers {
+		return fmt.Errorf("收银窗口数量必须为 1 或 2")
+	}
+	if g.done {
+		return fmt.Errorf("本轮模拟已结束")
+	}
+	queue := g.engine.queues[agents.Payment]
+	if err := queue.Resize(max(count, queue.Len())); err != nil {
+		return err
+	}
+	g.engine.config.Cashiers = count
+	return nil
 }
 
 // Step 推进一个逻辑时间步，返回是否结束。不可从多个 goroutine 同时调用。

@@ -13,7 +13,8 @@ type ZoneSnapshot struct {
 
 type WorkerSnapshot struct {
 	Staff     agents.Staff
-	StudentID int // 0 表示当前空闲。
+	StudentID int  // 0 表示当前空闲。
+	Open      bool // 是否接受新任务；关闭时仍可能在完成最后一笔付款。
 }
 
 // Snapshot 是当前时间点的独立副本，不包含 channel 或引擎内部指针。
@@ -33,7 +34,7 @@ func (g *Game) Snapshot() Snapshot {
 		})
 	}
 	for _, worker := range g.engine.staff {
-		view := WorkerSnapshot{Staff: worker.result.Staff}
+		view := WorkerSnapshot{Staff: worker.result.Staff, Open: g.engine.workerOpen(worker)}
 		if worker.job != nil {
 			view.StudentID = worker.job.studentID
 		}

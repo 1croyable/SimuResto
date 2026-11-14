@@ -2,7 +2,6 @@ package client
 
 import (
 	"bytes"
-	"fmt"
 	"image/color"
 	"math"
 	"os"
@@ -13,30 +12,21 @@ import (
 )
 
 // 优先使用系统中文字体，不把系统字体复制到仓库。没有中文字体时显示英文界面。
-func loadFont(path string) (*text.GoTextFaceSource, bool, error) {
+func loadFont() (*text.GoTextFaceSource, bool, error) {
 	candidates := []string{
 		"C:/Windows/Fonts/msyh.ttc",
 		"C:/Windows/Fonts/simhei.ttf",
 		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
 		"/System/Library/Fonts/PingFang.ttc",
 	}
-	if path != "" {
-		candidates = []string{path}
-	}
 	for _, candidate := range candidates {
 		data, err := os.ReadFile(candidate)
 		if err != nil {
-			if path != "" {
-				return nil, false, err
-			}
 			continue
 		}
 		faces, err := text.NewGoTextFaceSourcesFromCollection(bytes.NewReader(data))
 		if err == nil && len(faces) > 0 {
 			return faces[0], true, nil
-		}
-		if path != "" {
-			return nil, false, fmt.Errorf("无法读取字体 %s: %w", path, err)
 		}
 	}
 	face, err := text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF))

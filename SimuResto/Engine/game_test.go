@@ -13,7 +13,8 @@ import (
 
 func TestGameMatchesContinuousRun(t *testing.T) {
 	config := environment.DefaultConfig()
-	generator := agents.StudentGenerator{Seed: config.Seed, ArrivalInterval: time.Second}
+	config.Tick = time.Second
+	generator := agents.StudentGenerator{Seed: environment.RandomSeed, ArrivalInterval: time.Second}
 	students, err := generator.Generate(90)
 	if err != nil {
 		t.Fatal(err)
@@ -46,6 +47,7 @@ func TestGameMatchesContinuousRun(t *testing.T) {
 
 func TestSnapshotIsIndependentAndReadingDoesNotAdvanceTime(t *testing.T) {
 	config := environment.DefaultConfig()
+	config.Tick = time.Second
 	student := agents.Student{ID: 1, Preference: agents.Vegetarian, Satisfaction: 50, Patience: time.Hour, StartersWanted: 1, DessertsWanted: 1}
 	game, err := NewGame(config, []agents.Student{student})
 	if err != nil {
@@ -86,6 +88,7 @@ func TestSnapshotIsIndependentAndReadingDoesNotAdvanceTime(t *testing.T) {
 
 func TestGameCloseReturnsReservationAndIsIdempotent(t *testing.T) {
 	config := environment.DefaultConfig()
+	config.Tick = time.Second
 	student := agents.Student{ID: 1, Preference: agents.Vegetarian, Satisfaction: 50, Patience: time.Hour}
 	game, err := NewGame(config, []agents.Student{student})
 	if err != nil {

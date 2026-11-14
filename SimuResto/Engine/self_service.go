@@ -4,6 +4,7 @@ import (
 	"time"
 
 	agents "simuresto/SimuResto/Agents"
+	environment "simuresto/SimuResto/Environment"
 )
 
 // 选前菜，甜点
@@ -32,18 +33,16 @@ func (e *engine) startSelfService() {
 // collectSelfServiceItems 先按期望组合领取，再用另一类补足；只对最终缺少的份数扣分。
 func (e *engine) collectSelfServiceItems(student *studentState) int {
 	profile, meal := student.result.Student, &student.result.Meal
-	wanted := min(profile.StartersWanted+profile.DessertsWanted, e.config.MaxSelfServiceItems,
-		e.config.MaxStartersPerStudent+e.config.MaxDessertsPerStudent)
-	remaining := wanted
-	take := func(target *[]agents.Dish, course agents.Course, count, limit int) {
-		dishes := e.chooseAndTakeDishes(student, course, min(count, limit-len(*target), remaining))
+	remaining := min(profile.StartersWanted+profile.DessertsWanted, environment.MaxSideItems)
+	take := func(target *[]agents.Dish, course agents.Course, count int) {
+		dishes := e.chooseAndTakeDishes(student, course, min(count, remaining))
 		*target = append(*target, dishes...)
 		remaining -= len(dishes)
 	}
-	take(&meal.Starters, agents.Starter, profile.StartersWanted, e.config.MaxStartersPerStudent)
-	take(&meal.Desserts, agents.Dessert, profile.DessertsWanted, e.config.MaxDessertsPerStudent)
-	take(&meal.Starters, agents.Starter, remaining, e.config.MaxStartersPerStudent)
-	take(&meal.Desserts, agents.Dessert, remaining, e.config.MaxDessertsPerStudent)
+	take(&meal.Starters, agents.Starter, profile.StartersWanted)
+	take(&meal.Desserts, agents.Dessert, profile.DessertsWanted)
+	take(&meal.Starters, agents.Starter, remaining)
+	take(&meal.Desserts, agents.Dessert, remaining)
 	return remaining
 }
 
@@ -68,7 +67,7 @@ func (e *engine) stepSelfService(step time.Duration) {
 		student := e.ID2Student[id]
 		if student.started && !student.ready {
 			student.elapsed += step
-			if student.elapsed >= e.config.SelfServiceTime {
+			if student.elapsed >= environment.SelfServiceTime {
 				student.ready = true
 			}
 		}
