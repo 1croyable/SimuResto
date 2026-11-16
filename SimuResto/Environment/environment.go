@@ -52,8 +52,7 @@ type Environment struct {
 	Cook    agents.StaffState
 	Cashier agents.StaffState
 
-	Menu              []food.Dish
-	RemainingPortions int
+	Menu []food.Dish
 }
 
 func New(settings Settings) *Environment {
@@ -117,7 +116,6 @@ func New(settings Settings) *Environment {
 			{ID: "pasta", Name: "Pasta", Course: food.Main, Vegetarian: true,
 				Portions: settings.StudentCount / 2, ColorScore: 0.8, TasteScore: 0.9, SatietyScore: 0.9},
 		},
-		RemainingPortions: settings.StudentCount,
 	}
 
 	aisleEntrance := agents.Point{X: diningAisleX, Y: lowerRoadY}

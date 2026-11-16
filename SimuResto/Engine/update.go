@@ -164,9 +164,22 @@ func advanceQueue(world *environment.Environment, dt time.Duration) {
 
 				atCounter := student.PositionAlongRoute >= counterPositionAlongRoute-0.0001
 
-				// Plan both starters only when arriving at the first counter.
-				if atCounter && student.Target == agents.TargetStarter1 && student.PlannedStarterIDs == nil {
+				// Plan shortly before reaching Starter 1.
+				if student.Target == agents.TargetStarter1 && student.PlannedStarterIDs == nil && student.PositionAlongRoute >= starter1Position-20 {
+
 					student.PlanStarters(world.Menu)
+
+					// Reserve the selected portions immediately
+					// Because advanceQueue() processes students sequentially, the next student sees the updated stock, so there won't a conflict when the total portion number is limited
+					for _, dishID := range student.PlannedStarterIDs {
+						for i := range world.Menu {
+							dish := &world.Menu[i]
+							if dish.Course == food.Starter && dish.ID == dishID {
+								dish.Portions--
+								break
+							}
+						}
+					}
 				}
 
 				// Count the dishes planned for the current starter counter.
@@ -179,7 +192,7 @@ func advanceQueue(world *environment.Environment, dt time.Duration) {
 
 					for _, dishID := range student.PlannedStarterIDs {
 						for _, dish := range world.Menu {
-							if dish.ID == dishID && dish.StarterCounter == counterNumber && dish.Portions > 0 {
+							if dish.ID == dishID && dish.StarterCounter == counterNumber {
 								starterCount++
 								break
 							}
@@ -242,6 +255,17 @@ func advanceQueue(world *environment.Environment, dt time.Duration) {
 				})
 
 				if decision.Leave {
+					// Return any reserved starters that were not collected.
+					for _, dishID := range student.PlannedStarterIDs {
+						for i := range world.Menu {
+							if world.Menu[i].ID == dishID {
+								world.Menu[i].Portions++
+								break
+							}
+						}
+					}
+					student.PlannedStarterIDs = nil
+
 					student.Status = agents.Abandoned
 					world.Queue.Remove(id)
 					leftQueue = true
@@ -369,7 +393,6 @@ func collectDish(world *environment.Environment, student *agents.StudentState) {
 			meal := *dish
 			student.Meal.Main = &meal
 			dish.Portions--
-			world.RemainingPortions--
 			return
 		}
 		return
@@ -381,21 +404,31 @@ func collectDish(world *environment.Environment, student *agents.StudentState) {
 		counterNumber = 2
 	}
 
+	remaining := make([]string, 0, len(student.PlannedStarterIDs))
+
 	for _, dishID := range student.PlannedStarterIDs {
+		collected := false
+
 		for i := range world.Menu {
 			dish := &world.Menu[i]
 
 			if dish.Course != food.Starter ||
 				dish.ID != dishID ||
-				dish.StarterCounter != counterNumber ||
-				dish.Portions <= 0 {
+				dish.StarterCounter != counterNumber {
 				continue
 			}
 
 			meal := *dish
 			student.Meal.Starters = append(student.Meal.Starters, meal)
-			dish.Portions--
+			collected = true
 			break
 		}
+
+		if !collected {
+			remaining = append(remaining, dishID)
+		}
 	}
+
+	// if the wanted dish is at conter 2 but now the student is at conter 1, remaining reserve it
+	student.PlannedStarterIDs = remaining
 }
