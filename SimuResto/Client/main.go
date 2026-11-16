@@ -57,8 +57,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(color.White)
 	roadColor := color.RGBA{R: 96, G: 96, B: 96, A: 255}
 	foodColor := color.RGBA{R: 224, G: 224, B: 224, A: 255}
+	starterColor := color.RGBA{R: 180, G: 220, B: 180, A: 255}
 
-	vector.FillRect(screen, g.World.FoodRegion.X, g.World.FoodRegion.Y, g.World.FoodRegion.Width, g.World.FoodRegion.Height, foodColor, false)
+	for _, region := range g.World.StarterRegions {
+		vector.FillRect(screen, region.X, region.Y, region.Width, region.Height, starterColor, false)
+	}
+
+	vector.FillRect(screen, g.World.MainRegion.X, g.World.MainRegion.Y, g.World.MainRegion.Width, g.World.MainRegion.Height, foodColor, false)
 	vector.FillRect(screen, g.World.CashierRegion.X, g.World.CashierRegion.Y, g.World.CashierRegion.Width, g.World.CashierRegion.Height, foodColor, false)
 
 	for _, area := range g.World.DiningAreas {
@@ -102,7 +107,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			fill = color.RGBA{R: 225, G: 140, B: 45, A: 255}
 		}
 		vector.FillCircle(screen, float32(student.Position.X), float32(student.Position.Y), 6, fill, true)
-		if student.Meal.Main != nil && student.Status != agents.WalkingToExit {
+
+		isWalkingToExit := student.Status == agents.Walking && student.Target == agents.TargetExit
+		if student.Meal.Main != nil && !isWalkingToExit {
 			vector.FillCircle(screen, float32(student.Position.X)+8, float32(student.Position.Y), 3,
 				color.RGBA{R: 90, G: 190, B: 90, A: 255}, true)
 		}

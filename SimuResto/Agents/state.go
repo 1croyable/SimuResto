@@ -13,9 +13,12 @@ type Point struct {
 
 // StudentState holds properties that change during a simulation.
 type StudentState struct {
-	Student           StudentData
-	Position          Point
-	NextWaypoint      int
+	Student  StudentData
+	Position Point
+
+	NextWaypoint int
+	Target       StudentTarget
+
 	Status            StudentStatus
 	Meal              food.Meal
 	RemainingDining   time.Duration
@@ -27,6 +30,8 @@ type StudentState struct {
 	QueueWait          time.Duration
 	OrderedDishID      string
 	randomGenerator    *rand.Rand
+
+	RemainingStarterPickup time.Duration // collecting starters may take several simulation updates
 }
 
 type StaffState struct {

@@ -16,13 +16,21 @@ const (
 
 	Abandoned StudentStatus = "abandoned"
 
-	Walking          StudentStatus = "walking"
-	Serving          StudentStatus = "receiving a dish"
-	WalkingToCashier StudentStatus = "walking to checkout"
-	Paying           StudentStatus = "paying"
-	WalkingToDining  StudentStatus = "walking to dining"
-	Dining           StudentStatus = "dining"
-	WalkingToTrash   StudentStatus = "walking to waste station"
-	WalkingToExit    StudentStatus = "walking to exit"
-	Finished         StudentStatus = "finished"
+	Walking  StudentStatus = "walking"
+	Serving  StudentStatus = "receiving a dish"
+	Paying   StudentStatus = "paying"
+	Dining   StudentStatus = "dining"
+	Finished StudentStatus = "finished"
+)
+
+type StudentTarget string
+
+const (
+	TargetStarter1 StudentTarget = "starter1"
+	TargetStarter2 StudentTarget = "starter2"
+	TargetMain     StudentTarget = "main"
+	TargetCashier  StudentTarget = "cashier"
+	TargetDining   StudentTarget = "dining"
+	TargetTrash    StudentTarget = "trash"
+	TargetExit     StudentTarget = "exit"
 )

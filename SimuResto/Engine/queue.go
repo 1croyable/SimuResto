@@ -36,7 +36,8 @@ func admitStudents(world *environment.Environment, arrivals <-chan *agents.Stude
 			Y: world.Route[0].Y,
 		}
 		student.NextWaypoint = 0
-		student.Status = agents.WaitingForFood
+		student.Status = agents.Walking
+		student.Target = agents.TargetStarter1
 		world.Queue.Enqueue(student.Student.ID)
 	}
 }
