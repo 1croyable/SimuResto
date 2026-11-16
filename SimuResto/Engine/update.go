@@ -28,6 +28,10 @@ func Step(world *environment.Environment, dt time.Duration) {
 	// admit arrived students while there is space in the queue
 	admitStudents(world, arrivedStudents)
 
+	if n := len(world.Queue.IDs()); n > world.Statistics.MaxQueueLength {
+		world.Statistics.MaxQueueLength = n
+	}
+
 	// advance student state
 	for studentIndex := range world.Students {
 		student := &world.Students[studentIndex]
@@ -323,8 +327,22 @@ func advanceQueue(world *environment.Environment, dt time.Duration) {
 						break
 					}
 
-					// Collect planned starters and update inventory
+					// Collect planned starters and update inventory; Track the statistics of the counter
+					before := len(student.Meal.Starters)
 					collectDish(world, student)
+					collectedNum := len(student.Meal.Starters) - before
+
+					counterIndex := 0
+					if student.Target == agents.TargetStarter2 {
+						counterIndex = 1
+					}
+
+					recordService(
+						&world.Statistics.StarterCounters[counterIndex],
+						student.QueueWait,
+						world.Settings.ServiceTime*time.Duration(collectedNum),
+						collectedNum,
+					)
 
 					if student.Target == agents.TargetStarter1 {
 						student.Target = agents.TargetStarter2
@@ -333,7 +351,6 @@ func advanceQueue(world *environment.Environment, dt time.Duration) {
 					}
 					student.Status = agents.Walking
 					student.QueueWait = 0
-					break
 				} else {
 					// pickup mains
 					busyTime := world.Cook.AdvanceService(remainingTime)
@@ -344,6 +361,13 @@ func advanceQueue(world *environment.Environment, dt time.Duration) {
 
 					// Collect the main course and update inventory
 					collectDish(world, student)
+
+					recordService(
+						&world.Statistics.MainCounter,
+						student.QueueWait,
+						world.Cook.Staff.ServiceTime,
+						1,
+					)
 
 					world.Cook.StudentID = 0
 					foodCounterFreeAt = dt - remainingTime
@@ -358,8 +382,17 @@ func advanceQueue(world *environment.Environment, dt time.Duration) {
 				if world.Cashier.ServiceTimeLeft > 0 {
 					break
 				}
+
 				world.Cashier.StudentID = 0
 				paymentCounterFreeAt = dt - remainingTime
+
+				recordService(
+					&world.Statistics.CashierCounter,
+					student.QueueWait,
+					world.Cashier.Staff.ServiceTime,
+					0,
+				)
+
 				student.Status = agents.Walking
 				student.Target = agents.TargetDining
 				student.NextWaypoint = 0
@@ -431,4 +464,15 @@ func collectDish(world *environment.Environment, student *agents.StudentState) {
 
 	// if the wanted dish is at conter 2 but now the student is at conter 1, remaining reserve it
 	student.PlannedStarterIDs = remaining
+}
+
+func recordService(stats *environment.CounterStatistics, wait, service time.Duration, dishes int) {
+	stats.StudentsServed++
+	stats.DishesCollected += dishes
+	stats.TotalWaitTime += wait
+	stats.TotalServiceTime += service
+
+	if wait > stats.MaxWaitTime {
+		stats.MaxWaitTime = wait
+	}
 }

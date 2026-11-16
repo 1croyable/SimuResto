@@ -45,13 +45,14 @@ type Environment struct {
 
 	Students     []agents.StudentState
 	StudentsByID map[int]*agents.StudentState
+	Cook         agents.StaffState
+	Cashier      agents.StaffState
+
+	Menu []food.Dish
 
 	Queue *model.Queue
 
-	Cook    agents.StaffState
-	Cashier agents.StaffState
-
-	Menu []food.Dish
+	Statistics Statistics
 }
 
 func New(settings Settings) *Environment {

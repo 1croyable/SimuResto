@@ -22,12 +22,18 @@ type Game struct {
 	Mode          ScreenMode
 	lastFrame     time.Time
 	tickRemainder int64 // Accumulation of simulation time to prevent precision loss between ticks
+	showStats     bool
 }
 
 func (g *Game) Update() error {
-	// process keyboard
+	// process mouse button
 	clicked := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
 	x, y := ebiten.CursorPosition()
+
+	// Toggle statistics overlay
+	if g.Mode != Home && inpututil.IsKeyJustPressed(ebiten.KeyF3) {
+		g.showStats = !g.showStats
+	}
 
 	switch g.Mode {
 	case Home:
@@ -155,6 +161,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			vector.FillCircle(screen, float32(student.Position.X)+8, float32(student.Position.Y), 3,
 				color.RGBA{R: 90, G: 190, B: 90, A: 255}, true)
 		}
+	}
+
+	if g.showStats {
+		drawStats(screen, g.World)
 	}
 
 	if g.Mode == Paused {
