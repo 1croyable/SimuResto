@@ -29,7 +29,6 @@ type DiningArea struct {
 type Environment struct {
 	Settings   Settings
 	TimePassed time.Duration // Total simulated time since starting
-	Paused     bool
 
 	Roads          []Region
 	StarterRegions [2]Region

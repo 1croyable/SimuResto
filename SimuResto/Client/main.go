@@ -18,20 +18,57 @@ import (
 
 type Game struct {
 	World         *environment.Environment
+	Settings      environment.Settings
+	Mode          ScreenMode
 	lastFrame     time.Time
-	tickRemainder int64
+	tickRemainder int64 // Accumulation of simulation time to prevent precision loss between ticks
 }
 
 func (g *Game) Update() error {
-	// pause
-	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-		g.World.Paused = !g.World.Paused
+	// process keyboard
+	clicked := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
+	x, y := ebiten.CursorPosition()
+
+	switch g.Mode {
+	case Home:
+		if clicked {
+			if menuButtonHit(x, y, button1Y) {
+				g.World = environment.New(g.Settings) // create the world
+				g.tickRemainder = 0
+				g.Mode = Running
+			} else if menuButtonHit(x, y, button2Y) {
+				return ebiten.Termination
+			}
+		}
+		return nil
+
+	case Paused:
+		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+			g.Mode = Running
+			return nil
+		}
+
+		if clicked {
+			if menuButtonHit(x, y, button1Y) {
+				// Resume
+				g.Mode = Running
+			} else if menuButtonHit(x, y, button2Y) {
+				// Restart
+				g.World = environment.New(g.Settings)
+				g.tickRemainder = 0
+				g.Mode = Running
+			} else if menuButtonHit(x, y, button3Y) {
+				g.World = nil
+				g.tickRemainder = 0
+				g.Mode = Home
+			}
+		}
+		return nil
 	}
 
-	// restart
-	if inpututil.IsKeyJustPressed(ebiten.KeyR) {
-		g.World = environment.New(g.World.Settings)
-		g.tickRemainder = 0
+	// pause
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		g.Mode = Paused
 		return nil
 	}
 
@@ -48,13 +85,18 @@ func (g *Game) Update() error {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	// Frame pacing belongs to the client; the engine only receives simulated time.
-	interval := time.Second / time.Duration(g.World.Settings.FramesPerSecond)
+	interval := time.Second / time.Duration(g.Settings.FramesPerSecond)
 	if delay := interval - time.Since(g.lastFrame); delay > 0 {
 		time.Sleep(delay)
 	}
 	g.lastFrame = time.Now()
 
 	screen.Fill(color.White)
+	if g.Mode == Home {
+		drawMenu(screen, Home)
+		return
+	}
+
 	roadColor := color.RGBA{R: 96, G: 96, B: 96, A: 255}
 	foodColor := color.RGBA{R: 224, G: 224, B: 224, A: 255}
 	starterColor := color.RGBA{R: 180, G: 220, B: 180, A: 255}
@@ -114,6 +156,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				color.RGBA{R: 90, G: 190, B: 90, A: 255}, true)
 		}
 	}
+
+	if g.Mode == Paused {
+		drawMenu(screen, Paused)
+	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -122,13 +168,16 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 func main() {
 	settings := environment.DefaultSettings()
-	world := environment.New(settings)
+	game := &Game{
+		Settings: settings,
+		Mode:     Home,
+	}
 	ebiten.SetWindowSize(environment.Width, environment.Height)
 	ebiten.SetWindowTitle("SimuResto")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	ebiten.SetTPS(settings.TicksPerSecond)
 	ebiten.SetVsyncEnabled(false)
-	if err := ebiten.RunGame(&Game{World: world}); err != nil {
+	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
 }

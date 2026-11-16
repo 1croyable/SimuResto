@@ -10,7 +10,7 @@ import (
 )
 
 func Step(world *environment.Environment, dt time.Duration) {
-	if world.Paused || dt <= 0 {
+	if dt <= 0 {
 		return
 	}
 
