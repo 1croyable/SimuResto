@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/rand"
 	randomness "simuresto/SimuResto/Agents/Randomness"
+	food "simuresto/SimuResto/Shared/Food"
 	"time"
 )
 
@@ -13,6 +14,11 @@ type StudentData struct {
 	Patience       time.Duration
 	StartersWanted int
 	DessertsWanted int
+
+	// preference of the dishes
+	ColorWeight   float64
+	TasteWeight   float64
+	SatietyWeight float64
 }
 
 type DishOption struct {
@@ -90,5 +96,52 @@ func NewStudentState(student StudentData, seed int64) StudentState {
 		Student:         student,
 		Status:          Scheduled,
 		randomGenerator: rand.New(rand.NewSource(studentSeed)),
+	}
+}
+
+func (studentStatus *StudentState) PlanStarters(menu []food.Dish) {
+	studentStatus.PlannedStarterIDs = make([]string, 0, 2)
+
+	portions := make([]int, len(menu))
+	for i, dish := range menu {
+		portions[i] = dish.Portions
+	}
+
+	colorWeight := studentStatus.Student.ColorWeight
+	tasteWeight := studentStatus.Student.TasteWeight
+	satietyWeight := studentStatus.Student.SatietyWeight
+
+	// For now, every student wants two starters.
+	for len(studentStatus.PlannedStarterIDs) < 2 {
+		bestIndex := -1
+		bestScore := -1.0
+
+		for i, dish := range menu {
+			if dish.Course != food.Starter || portions[i] <= 0 {
+				continue
+			}
+
+			score := randomness.StarterScore(dish, colorWeight, tasteWeight, satietyWeight, portions[i])
+
+			// Reduce the score of the first selected dish by 40%.
+			if len(studentStatus.PlannedStarterIDs) > 0 &&
+				dish.ID == studentStatus.PlannedStarterIDs[0] {
+				score *= 0.6
+			}
+
+			if score > bestScore {
+				bestScore = score
+				bestIndex = i
+			}
+		}
+
+		if bestIndex == -1 {
+			break
+		}
+
+		studentStatus.PlannedStarterIDs = append(
+			studentStatus.PlannedStarterIDs, menu[bestIndex].ID,
+		)
+		portions[bestIndex]--
 	}
 }

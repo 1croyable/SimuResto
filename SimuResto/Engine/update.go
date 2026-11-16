@@ -6,6 +6,7 @@ import (
 
 	agents "simuresto/SimuResto/Agents"
 	environment "simuresto/SimuResto/Environment"
+	food "simuresto/SimuResto/Shared/Food"
 )
 
 func Step(world *environment.Environment, dt time.Duration) {
@@ -162,6 +163,42 @@ func advanceQueue(world *environment.Environment, dt time.Duration) {
 				remainingTime -= walkingTime
 
 				atCounter := student.PositionAlongRoute >= counterPositionAlongRoute-0.0001
+
+				// Plan both starters only when arriving at the first counter.
+				if atCounter && student.Target == agents.TargetStarter1 && student.PlannedStarterIDs == nil {
+					student.PlanStarters(world.Menu)
+				}
+
+				// Count the dishes planned for the current starter counter.
+				starterCount := 0
+				if atCounter && pickingStarter {
+					counterNumber := 1
+					if student.Target == agents.TargetStarter2 {
+						counterNumber = 2
+					}
+
+					for _, dishID := range student.PlannedStarterIDs {
+						for _, dish := range world.Menu {
+							if dish.ID == dishID && dish.StarterCounter == counterNumber && dish.Portions > 0 {
+								starterCount++
+								break
+							}
+						}
+					}
+
+					// Nothing to collect here: continue without stopping.
+					if starterCount == 0 {
+						if student.Target == agents.TargetStarter1 {
+							student.Target = agents.TargetStarter2
+						} else {
+							student.Target = agents.TargetMain
+						}
+						student.Status = agents.Walking
+						student.QueueWait = 0
+						continue
+					}
+				}
+
 				var dishes []agents.DishOption
 				canStartService := false
 
@@ -172,7 +209,7 @@ func advanceQueue(world *environment.Environment, dt time.Duration) {
 					// food service
 					if atCounter && counter.StudentID == 0 {
 						for _, dish := range world.Menu {
-							if dish.Portions > 0 {
+							if dish.Course == food.Main && dish.Portions > 0 {
 								dishes = append(dishes, agents.DishOption{ID: dish.ID})
 							}
 						}
@@ -232,7 +269,7 @@ func advanceQueue(world *environment.Environment, dt time.Duration) {
 						student.NextWaypoint = starter2End
 					}
 					student.Status = agents.Serving
-					student.RemainingStarterPickup = world.Settings.ServiceTime
+					student.RemainingStarterPickup = world.Settings.ServiceTime * time.Duration(starterCount)
 
 				} else if beforeFood {
 					choice := student.Decide(agents.StudentObservation{Dishes: dishes})
@@ -252,8 +289,8 @@ func advanceQueue(world *environment.Environment, dt time.Duration) {
 				}
 
 			case agents.Serving:
-				// self-service starter pickup
 				if student.Target == agents.TargetStarter1 || student.Target == agents.TargetStarter2 {
+					// pickup starters
 					pickupTime := min(remainingTime, student.RemainingStarterPickup)
 					remainingTime -= pickupTime
 					student.RemainingStarterPickup -= pickupTime
@@ -261,6 +298,9 @@ func advanceQueue(world *environment.Environment, dt time.Duration) {
 					if student.RemainingStarterPickup > 0 {
 						break
 					}
+
+					// Collect planned starters and update inventory
+					collectDish(world, student)
 
 					if student.Target == agents.TargetStarter1 {
 						student.Target = agents.TargetStarter2
@@ -270,28 +310,23 @@ func advanceQueue(world *environment.Environment, dt time.Duration) {
 					student.Status = agents.Walking
 					student.QueueWait = 0
 					break
-				}
-
-				busyTime := world.Cook.AdvanceService(remainingTime)
-				remainingTime -= busyTime
-				if world.Cook.ServiceTimeLeft > 0 {
-					break
-				}
-				for i := range world.Menu {
-					dish := &world.Menu[i]
-					if dish.ID == student.OrderedDishID {
-						meal := *dish
-						student.Meal.Main = &meal
-						dish.Portions--
-						world.RemainingPortions--
+				} else {
+					// pickup mains
+					busyTime := world.Cook.AdvanceService(remainingTime)
+					remainingTime -= busyTime
+					if world.Cook.ServiceTimeLeft > 0 {
 						break
 					}
+
+					// Collect the main course and update inventory
+					collectDish(world, student)
+
+					world.Cook.StudentID = 0
+					foodCounterFreeAt = dt - remainingTime
+					student.Status = agents.Walking
+					student.Target = agents.TargetCashier
+					student.QueueWait = 0
 				}
-				world.Cook.StudentID = 0
-				foodCounterFreeAt = dt - remainingTime
-				student.Status = agents.Walking
-				student.Target = agents.TargetCashier
-				student.QueueWait = 0
 
 			case agents.Paying:
 				busyTime := world.Cashier.AdvanceService(remainingTime)
@@ -317,6 +352,50 @@ func advanceQueue(world *environment.Environment, dt time.Duration) {
 		if !leftQueue {
 			personAheadPositionAlongRoute = student.PositionAlongRoute
 			peopleAhead++
+		}
+	}
+}
+
+func collectDish(world *environment.Environment, student *agents.StudentState) {
+	// Collect the selected main course.
+	if student.Target == agents.TargetMain {
+		for i := range world.Menu {
+			dish := &world.Menu[i]
+
+			if dish.Course != food.Main || dish.ID != student.OrderedDishID || dish.Portions <= 0 {
+				continue
+			}
+
+			meal := *dish
+			student.Meal.Main = &meal
+			dish.Portions--
+			world.RemainingPortions--
+			return
+		}
+		return
+	}
+
+	// Collect planned starters from the current counter.
+	counterNumber := 1
+	if student.Target == agents.TargetStarter2 {
+		counterNumber = 2
+	}
+
+	for _, dishID := range student.PlannedStarterIDs {
+		for i := range world.Menu {
+			dish := &world.Menu[i]
+
+			if dish.Course != food.Starter ||
+				dish.ID != dishID ||
+				dish.StarterCounter != counterNumber ||
+				dish.Portions <= 0 {
+				continue
+			}
+
+			meal := *dish
+			student.Meal.Starters = append(student.Meal.Starters, meal)
+			dish.Portions--
+			break
 		}
 	}
 }

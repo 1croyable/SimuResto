@@ -1,6 +1,7 @@
 package environment
 
 import (
+	"math/rand"
 	"time"
 
 	agents "simuresto/SimuResto/Agents"
@@ -104,8 +105,17 @@ func New(settings Settings) *Environment {
 			Position: agents.Point{X: 670, Y: 585},
 		},
 		Menu: []food.Dish{
-			{ID: "vegetable", Name: "Vegetable dish", Course: food.Main, Vegetarian: true, Portions: (settings.StudentCount + 1) / 2},
-			{ID: "pasta", Name: "Pasta", Course: food.Main, Vegetarian: true, Portions: settings.StudentCount / 2},
+			{ID: "salad", Name: "Green salad", Course: food.Starter, Vegetarian: true,
+				Portions: settings.StudentCount, ColorScore: 0.9, TasteScore: 0.7, SatietyScore: 0.3, StarterCounter: 1},
+
+			{ID: "soup", Name: "Vegetable soup", Course: food.Starter, Vegetarian: true,
+				Portions: settings.StudentCount, ColorScore: 0.6, TasteScore: 0.9, SatietyScore: 0.7, StarterCounter: 2},
+
+			{ID: "vegetable", Name: "Vegetable dish", Course: food.Main, Vegetarian: true,
+				Portions: (settings.StudentCount + 1) / 2, ColorScore: 0.7, TasteScore: 0.8, SatietyScore: 0.7},
+
+			{ID: "pasta", Name: "Pasta", Course: food.Main, Vegetarian: true,
+				Portions: settings.StudentCount / 2, ColorScore: 0.8, TasteScore: 0.9, SatietyScore: 0.9},
 		},
 		RemainingPortions: settings.StudentCount,
 	}
@@ -123,9 +133,16 @@ func New(settings Settings) *Environment {
 	world.Queue, _ = model.NewQueue(settings.StudentCount)
 	world.Students = make([]agents.StudentState, settings.StudentCount)
 	world.StudentsByID = make(map[int]*agents.StudentState, settings.StudentCount)
+
+	rng := rand.New(rand.NewSource(settings.Seed))
 	for i := range world.Students {
 		world.Students[i] = agents.NewStudentState(agents.StudentData{
-			ID: i + 1, ArrivalTime: time.Duration(i) * settings.ArrivalInterval, Patience: settings.BasePatience,
+			ID:            i + 1,
+			ArrivalTime:   time.Duration(i) * settings.ArrivalInterval,
+			Patience:      settings.BasePatience,
+			ColorWeight:   rng.Float64(),
+			TasteWeight:   rng.Float64(),
+			SatietyWeight: rng.Float64(),
 		}, settings.Seed)
 		world.StudentsByID[world.Students[i].Student.ID] = &world.Students[i]
 	}

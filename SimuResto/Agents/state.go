@@ -32,6 +32,8 @@ type StudentState struct {
 	randomGenerator    *rand.Rand
 
 	RemainingStarterPickup time.Duration // collecting starters may take several simulation updates
+
+	PlannedStarterIDs []string
 }
 
 type StaffState struct {
