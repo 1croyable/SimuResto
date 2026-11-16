@@ -1,4 +1,11 @@
-package agents
+package food
+
+type Course string
+
+const (
+	Starter Course = "starter"
+	Main    Course = "main"
+)
 
 type Dish struct {
 	ID         string
@@ -11,5 +18,4 @@ type Dish struct {
 type Meal struct {
 	Starters []Dish
 	Main     *Dish
-	Desserts []Dish
 }

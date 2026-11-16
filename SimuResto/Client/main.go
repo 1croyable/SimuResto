@@ -60,7 +60,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	vector.FillRect(screen, g.World.FoodRegion.X, g.World.FoodRegion.Y, g.World.FoodRegion.Width, g.World.FoodRegion.Height, foodColor, false)
 	vector.FillRect(screen, g.World.CashierRegion.X, g.World.CashierRegion.Y, g.World.CashierRegion.Width, g.World.CashierRegion.Height, foodColor, false)
-	vector.FillRect(screen, g.World.FoodRegion.X, g.World.FoodRegion.Y, g.World.FoodRegion.Width, g.World.FoodRegion.Height, foodColor, false)
 
 	for _, area := range g.World.DiningAreas {
 		vector.FillRect(screen, area.Region.X, area.Region.Y, area.Region.Width, area.Region.Height, color.RGBA{R: 224, G: 234, B: 228, A: 255}, false)

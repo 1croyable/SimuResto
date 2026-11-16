@@ -3,6 +3,8 @@ package agents
 import (
 	"math/rand"
 	"time"
+
+	food "simuresto/SimuResto/Shared/Food"
 )
 
 type Point struct {
@@ -15,7 +17,7 @@ type StudentState struct {
 	Position          Point
 	NextWaypoint      int
 	Status            StudentStatus
-	Meal              Meal
+	Meal              food.Meal
 	RemainingDining   time.Duration
 	CounterReleasedAt time.Duration // Simulated time when the student last left a service counter.
 

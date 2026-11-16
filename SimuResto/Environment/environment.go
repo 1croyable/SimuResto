@@ -4,7 +4,8 @@ import (
 	"time"
 
 	agents "simuresto/SimuResto/Agents"
-	queue "simuresto/SimuResto/Queue"
+	food "simuresto/SimuResto/Shared/Food"
+	model "simuresto/SimuResto/Shared/Model"
 )
 
 const (
@@ -42,12 +43,12 @@ type Environment struct {
 	Students     []agents.StudentState
 	StudentsByID map[int]*agents.StudentState
 
-	Queue *queue.Queue
+	Queue *model.Queue
 
 	Cook    agents.StaffState
 	Cashier agents.StaffState
 
-	Menu              []agents.Dish
+	Menu              []food.Dish
 	RemainingPortions int
 }
 
@@ -78,9 +79,9 @@ func New(settings Settings) *Environment {
 			Staff:    agents.StaffData{ID: 2, Role: agents.Cashier, ServiceTime: settings.PaymentTime},
 			Position: agents.Point{X: 670, Y: 585},
 		},
-		Menu: []agents.Dish{
-			{ID: "vegetable", Name: "Vegetable dish", Course: agents.Main, Vegetarian: true, Portions: (settings.StudentCount + 1) / 2},
-			{ID: "pasta", Name: "Pasta", Course: agents.Main, Vegetarian: true, Portions: settings.StudentCount / 2},
+		Menu: []food.Dish{
+			{ID: "vegetable", Name: "Vegetable dish", Course: food.Main, Vegetarian: true, Portions: (settings.StudentCount + 1) / 2},
+			{ID: "pasta", Name: "Pasta", Course: food.Main, Vegetarian: true, Portions: settings.StudentCount / 2},
 		},
 		RemainingPortions: settings.StudentCount,
 	}
@@ -95,7 +96,7 @@ func New(settings Settings) *Environment {
 		area.CleanupRoute = []agents.Point{aisleTurn, aisleEntrance, {X: wasteStop.X, Y: lowerRoadY}, wasteStop}
 	}
 
-	world.Queue, _ = queue.NewQueue(settings.StudentCount)
+	world.Queue, _ = model.NewQueue(settings.StudentCount)
 	world.Students = make([]agents.StudentState, settings.StudentCount)
 	world.StudentsByID = make(map[int]*agents.StudentState, settings.StudentCount)
 	for i := range world.Students {
