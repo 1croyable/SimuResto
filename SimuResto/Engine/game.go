@@ -1,8 +1,8 @@
 package engine
 
 import (
-	"context"
 	"fmt"
+	"time"
 
 	agents "simuresto/SimuResto/Agents"
 	environment "simuresto/SimuResto/Environment"
@@ -10,15 +10,16 @@ import (
 
 type Game struct {
 	engine *engine
+	World  *environment.Environment
 	done   bool
 	err    error
 }
 
-func NewGame(config environment.Config, students []agents.Student) (*Game, error) {
-	if err := config.Validate(students); err != nil {
-		return nil, err
+func NewGame(world *environment.Environment) *Game {
+	return &Game{
+		World:  world,
+		engine: newEngine(),
 	}
-	return &Game{engine: newEngine(config, students)}, nil
 }
 
 // SetCashiers 调整开放窗口数量，与 Step 一样由调用方串行调用。
@@ -38,57 +39,58 @@ func (g *Game) SetCashiers(count int) error {
 	return nil
 }
 
-// Step 推进一个逻辑时间步，返回是否结束。不可从多个 goroutine 同时调用。
-func (g *Game) Step(ctx context.Context) (bool, error) {
-	if g.done {
-		return true, g.err
-	}
-	e := g.engine
-	if err := ctx.Err(); err != nil {
-		e.stop()
-		return g.finish(err)
-	}
-	e.moveForward()
-	e.admit()
-	if e.stats.finishedStudentCount == len(e.students) {
-		return g.finish(nil)
-	}
-	if e.now >= environment.ServiceDuration {
-		e.stop()
-		return g.finish(ErrTimeLimit)
+func (g *Game) Step(dt time.Duration) {
+	world := g.World
+	engine := g.engine
+
+	if dt <= 0 || g.done {
+		return
 	}
 
-	e.askStudents(allStudents)
-	// 离队腾出的空位立即交给后方学生，再开始服务并统计真实等待。
-	e.moveForward()
-	e.startSelfService()
-	e.assignStaff()
-	step := min(e.config.Tick, environment.ServiceDuration-e.now)
-	e.countWaiting(step)
-	e.now += step
-	e.stepSelfService(step)
-	e.stepStaffService(step)
-	e.askStudents(waitingStudents) //室外学生是否放弃排队
-	e.moveForward()
-	if e.stats.finishedStudentCount == len(e.students) {
-		return g.finish(nil)
+	world.TimePassed += dt
+
+	arrivedStudents := make(chan *agents.StudentState, len(world.StudentStates))
+	for studentIndex := range world.StudentStates {
+		student := &world.StudentStates[studentIndex]
+		if student.Status == agents.Scheduled && student.Student.ArrivalTime <= world.TimePassed {
+			arrivedStudents <- student
+		}
 	}
-	return false, nil
+	close(arrivedStudents)
+
+	// admit arrived students while there is space in the queue
+	engine.admitStudents(world, arrivedStudents)
+
+	if n := len(world.Queue.IDs()); n > world.Statistics.MaxQueueLength {
+		world.Statistics.MaxQueueLength = n
+	}
+
+	// advance student state
+	for studentIndex := range world.StudentStates {
+		student := &world.StudentStates[studentIndex]
+		advanceStudentAfterPayment(world, student, dt)
+	}
+
+	// students still in line move, collect food, pay, or leave the queue
+	g.engine.advanceQueue(world, dt)
+
+	// fill places freed by payment or abandonment during this step
+	engine.admitStudents(world, arrivedStudents)
 }
 
 func (g *Game) finish(err error) (bool, error) {
-	g.done, g.err = true, err
+	if g.done {
+		return true, g.err
+	}
+
+	g.done = true
+	g.err = err
 	g.engine.closeAgents()
 	return true, err
 }
 
-// Close 用于关闭窗口或重新开始；归还未交付的库存并等待所有智能体退出。
-// 已结束或已关闭的模拟可以重复关闭。
 func (g *Game) Close() {
-	if !g.done {
-		g.engine.stop()
-		g.finish(context.Canceled)
-	}
+	g.finish(nil)
 }
 
 // Report 返回独立副本，调用方修改它不会影响模拟。

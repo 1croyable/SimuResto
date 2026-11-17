@@ -1,4 +1,3 @@
-// Client is a minimal, independent view of the cafeteria.
 package main
 
 import (
@@ -7,6 +6,7 @@ import (
 	"time"
 
 	agents "simuresto/SimuResto/Agents"
+	client "simuresto/SimuResto/Client"
 	engine "simuresto/SimuResto/Engine"
 	environment "simuresto/SimuResto/Environment"
 
@@ -17,12 +17,12 @@ import (
 )
 
 type Game struct {
-	World         *environment.Environment
+	Simulation    *engine.Game
 	Settings      environment.Settings
-	Mode          ScreenMode
-	lastFrame     time.Time
-	tickRemainder int64 // Accumulation of simulation time to prevent precision loss between ticks
+	Mode          client.ScreenMode
+	tickRemainder int64
 	showStats     bool
+	frameLimiter  client.FrameLimiter
 }
 
 func (g *Game) Update() error {
@@ -31,42 +31,40 @@ func (g *Game) Update() error {
 	x, y := ebiten.CursorPosition()
 
 	// Toggle statistics overlay
-	if g.Mode != Home && inpututil.IsKeyJustPressed(ebiten.KeyF3) {
+	if g.Mode != client.Home && inpututil.IsKeyJustPressed(ebiten.KeyF3) {
 		g.showStats = !g.showStats
 	}
 
 	switch g.Mode {
-	case Home:
+	case client.Home:
 		if clicked {
-			if menuButtonHit(x, y, button1Y) {
-				g.World = environment.New(g.Settings) // create the world
-				g.tickRemainder = 0
-				g.Mode = Running
-			} else if menuButtonHit(x, y, button2Y) {
+			if client.MenuButtonHit(x, y, client.Button1Y) {
+				g.startSimulation() // create the world
+			} else if client.MenuButtonHit(x, y, client.Button2Y) {
 				return ebiten.Termination
 			}
 		}
 		return nil
 
-	case Paused:
+	case client.Paused:
 		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-			g.Mode = Running
+			g.Mode = client.Running
 			return nil
 		}
 
 		if clicked {
-			if menuButtonHit(x, y, button1Y) {
+			if client.MenuButtonHit(x, y, client.Button1Y) {
 				// Resume
-				g.Mode = Running
-			} else if menuButtonHit(x, y, button2Y) {
+				g.Mode = client.Running
+			} else if client.MenuButtonHit(x, y, client.Button2Y) {
 				// Restart
-				g.World = environment.New(g.Settings)
+				g.Simulation.World = environment.New(g.Settings)
 				g.tickRemainder = 0
-				g.Mode = Running
-			} else if menuButtonHit(x, y, button3Y) {
-				g.World = nil
+				g.Mode = client.Running
+			} else if client.MenuButtonHit(x, y, client.Button3Y) {
+				g.closeSimulation()
 				g.tickRemainder = 0
-				g.Mode = Home
+				g.Mode = client.Home
 			}
 		}
 		return nil
@@ -74,71 +72,69 @@ func (g *Game) Update() error {
 
 	// pause
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-		g.Mode = Paused
+		g.Mode = client.Paused
 		return nil
 	}
 
 	g.tickRemainder += int64(time.Second)
-	rate := int64(g.World.Settings.TicksPerSecond)
+	rate := int64(g.Settings.TicksPerSecond)
 	dt := time.Duration(g.tickRemainder / rate)
 	g.tickRemainder %= rate
 
 	// update
-	engine.Step(g.World, dt)
+	g.Simulation.Step(dt)
 
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	// Frame pacing belongs to the client; the engine only receives simulated time.
-	interval := time.Second / time.Duration(g.Settings.FramesPerSecond)
-	if delay := interval - time.Since(g.lastFrame); delay > 0 {
-		time.Sleep(delay)
-	}
-	g.lastFrame = time.Now()
+	g.frameLimiter.Wait(g.Settings.FramesPerSecond)
 
 	screen.Fill(color.White)
-	if g.Mode == Home {
-		drawMenu(screen, Home)
+	if g.Mode == client.Home {
+		client.DrawMenu(screen, client.Home)
 		return
 	}
+
+	world := g.Simulation.World
 
 	roadColor := color.RGBA{R: 96, G: 96, B: 96, A: 255}
 	foodColor := color.RGBA{R: 224, G: 224, B: 224, A: 255}
 	starterColor := color.RGBA{R: 180, G: 220, B: 180, A: 255}
 
-	for _, region := range g.World.StarterRegions {
+	for _, region := range world.StarterRegions {
 		vector.FillRect(screen, region.X, region.Y, region.Width, region.Height, starterColor, false)
 	}
 
-	vector.FillRect(screen, g.World.MainRegion.X, g.World.MainRegion.Y, g.World.MainRegion.Width, g.World.MainRegion.Height, foodColor, false)
-	vector.FillRect(screen, g.World.CashierRegion.X, g.World.CashierRegion.Y, g.World.CashierRegion.Width, g.World.CashierRegion.Height, foodColor, false)
+	vector.FillRect(screen, world.MainRegion.X, world.MainRegion.Y, world.MainRegion.Width, world.MainRegion.Height, foodColor, false)
+	vector.FillRect(screen, world.CashierRegion.X, world.CashierRegion.Y, world.CashierRegion.Width, world.CashierRegion.Height, foodColor, false)
 
-	for _, area := range g.World.DiningAreas {
+	for _, area := range world.DiningAreas {
 		vector.FillRect(screen, area.Region.X, area.Region.Y, area.Region.Width, area.Region.Height, color.RGBA{R: 224, G: 234, B: 228, A: 255}, false)
 	}
 
-	vector.FillRect(screen, g.World.WasteRegion.X, g.World.WasteRegion.Y, g.World.WasteRegion.Width, g.World.WasteRegion.Height, color.RGBA{R: 237, G: 225, B: 210, A: 255}, false)
+	vector.FillRect(screen, world.WasteRegion.X, world.WasteRegion.Y, world.WasteRegion.Width, world.WasteRegion.Height, color.RGBA{R: 237, G: 225, B: 210, A: 255}, false)
 
-	for _, road := range g.World.Roads {
+	for _, road := range world.Roads {
 		vector.FillRect(screen, road.X, road.Y, road.Width, road.Height, roadColor, false)
 	}
 
 	ebitenutil.DebugPrintAt(screen, "Exit >", environment.Width-58, 512)
 
-	cook := g.World.Cook.Position
+	cook := world.Cook.Position
 	vector.FillCircle(screen, float32(cook.X), float32(cook.Y), 15,
 		color.RGBA{R: 225, G: 140, B: 45, A: 255}, true)
 	cashierColor := color.RGBA{R: 120, G: 120, B: 120, A: 255}
-	if g.World.Cashier.StudentID != 0 {
+	if world.Cashier.StudentID != 0 {
 		cashierColor = color.RGBA{R: 225, G: 140, B: 45, A: 255}
 	}
 
-	register := g.World.Cashier.Position
+	register := world.Cashier.Position
 	vector.FillCircle(screen, float32(register.X), float32(register.Y), 15, cashierColor, true)
 
 	finished, abandoned := 0, 0
-	for _, student := range g.World.Students {
+	for _, student := range world.StudentStates {
 		if student.Status == agents.Finished {
 			finished++
 			continue
@@ -164,11 +160,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	if g.showStats {
-		drawStats(screen, g.World)
+		client.DrawStats(screen, world)
 	}
 
-	if g.Mode == Paused {
-		drawMenu(screen, Paused)
+	if g.Mode == client.Paused {
+		client.DrawMenu(screen, client.Paused)
 	}
 }
 
@@ -176,18 +172,39 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return environment.Width, environment.Height
 }
 
+func (g *Game) startSimulation() {
+	g.closeSimulation()
+
+	world := environment.New(g.Settings)
+	g.Simulation = engine.NewGame(world)
+
+	g.tickRemainder = 0
+	g.Mode = client.Running
+}
+
+func (g *Game) closeSimulation() {
+	if g.Simulation != nil {
+		g.Simulation.Close()
+		g.Simulation = nil
+	}
+	g.tickRemainder = 0
+}
+
 func main() {
 	settings := environment.DefaultSettings()
 	game := &Game{
 		Settings: settings,
-		Mode:     Home,
+		Mode:     client.Home,
 	}
 	ebiten.SetWindowSize(environment.Width, environment.Height)
 	ebiten.SetWindowTitle("SimuResto")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	ebiten.SetTPS(settings.TicksPerSecond)
 	ebiten.SetVsyncEnabled(false)
-	if err := ebiten.RunGame(game); err != nil {
+
+	err := ebiten.RunGame(game)
+	game.closeSimulation()
+	if err != nil {
 		log.Fatal(err)
 	}
 }

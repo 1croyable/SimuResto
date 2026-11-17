@@ -16,7 +16,7 @@ func routeLength(route []agents.Point) float64 {
 	return totalDistance
 }
 
-func admitStudents(world *environment.Environment, arrivals <-chan *agents.StudentState) {
+func (e *engine) admitStudents(world *environment.Environment, arrivals <-chan *agents.StudentState) {
 	if world.Queue == nil {
 		return
 	}

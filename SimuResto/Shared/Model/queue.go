@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:SimuResto/Shared/Model/queue.go
 package model
-========
-package environment
->>>>>>>> origin/yy-dev:SimuResto/Environment/queue.go
 
 import (
 	"fmt"

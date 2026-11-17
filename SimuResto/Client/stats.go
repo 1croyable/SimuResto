@@ -1,4 +1,4 @@
-package main
+package client
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ import (
 
 var statsFont = text.NewGoXFace(basicfont.Face7x13)
 
-func drawStatsText(screen *ebiten.Image, label string, x, y int) {
+func DrawStatsText(screen *ebiten.Image, label string, x, y int) {
 	draw := func(dx, dy float64, clr color.Color) {
 		op := &text.DrawOptions{}
 		op.GeoM.Scale(1.2, 1.2)
@@ -31,7 +31,7 @@ func drawStatsText(screen *ebiten.Image, label string, x, y int) {
 	draw(0, 0, color.White)
 }
 
-func drawStatsPanel(screen *ebiten.Image, lines []string, x, y, width int) {
+func DrawStatsPanel(screen *ebiten.Image, lines []string, x, y, width int) {
 	const padding = 12
 	const lineHeight = 20
 
@@ -46,7 +46,7 @@ func drawStatsPanel(screen *ebiten.Image, lines []string, x, y, width int) {
 	)
 
 	for i, line := range lines {
-		drawStatsText(screen, line, x+padding, y+padding+i*lineHeight)
+		DrawStatsText(screen, line, x+padding, y+padding+i*lineHeight)
 	}
 }
 
@@ -66,11 +66,11 @@ func utilization(stats environment.CounterStatistics, elapsed float64) float64 {
 	return stats.TotalServiceTime.Seconds() / elapsed * 100
 }
 
-func drawStats(screen *ebiten.Image, world *environment.Environment) {
+func DrawStats(screen *ebiten.Image, world *environment.Environment) {
 	// Student statistics
 	active, finished, abandoned := 0, 0, 0
 
-	for _, student := range world.Students {
+	for _, student := range world.StudentStates {
 		switch student.Status {
 		case agents.Finished:
 			finished++
@@ -100,7 +100,7 @@ func drawStats(screen *ebiten.Image, world *environment.Environment) {
 		"SIMURESTO - SIMULATION",
 		"",
 		fmt.Sprintf("Simulation time : %s", timeLabel),
-		fmt.Sprintf("Total students  : %d", len(world.Students)),
+		fmt.Sprintf("Total students  : %d", len(world.StudentStates)),
 		fmt.Sprintf("Active students : %d", active),
 		fmt.Sprintf("Queue length    : %d", queueLength),
 		fmt.Sprintf("Maximum queue   : %d", stats.MaxQueueLength),
@@ -148,6 +148,6 @@ func drawStats(screen *ebiten.Image, world *environment.Environment) {
 	const panelWidth = 430
 	const margin = 10
 
-	drawStatsPanel(screen, leftLines, margin, margin, panelWidth)
-	drawStatsPanel(screen, rightLines, environment.Width-panelWidth-margin, margin, panelWidth)
+	DrawStatsPanel(screen, leftLines, margin, margin, panelWidth)
+	DrawStatsPanel(screen, rightLines, environment.Width-panelWidth-margin, margin, panelWidth)
 }

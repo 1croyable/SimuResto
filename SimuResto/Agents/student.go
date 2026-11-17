@@ -4,7 +4,6 @@ import (
 	"math"
 	"math/rand"
 	randomness "simuresto/SimuResto/Agents/Randomness"
-	food "simuresto/SimuResto/Shared/Food"
 	"time"
 )
 
@@ -99,7 +98,7 @@ func NewStudentState(student StudentData, seed int64) StudentState {
 	}
 }
 
-func (studentStatus *StudentState) PlanStarters(menu []food.Dish) {
+func (studentStatus *StudentState) PlanStarters(menu []Dish) {
 	studentStatus.PlannedStarterIDs = make([]string, 0, 2)
 
 	portions := make([]int, len(menu))
@@ -117,7 +116,7 @@ func (studentStatus *StudentState) PlanStarters(menu []food.Dish) {
 		bestScore := -1.0
 
 		for i, dish := range menu {
-			if dish.Course != food.Starter || portions[i] <= 0 {
+			if dish.Course != Starter || portions[i] <= 0 {
 				continue
 			}
 

@@ -1,37 +1,45 @@
 package client
 
-import (
-	"time"
-)
+import "time"
 
-const FPSLimit = 60
+type FrameLimiter struct {
+	next time.Time
+	fps  int
+}
 
-// 向上取整到纳秒，60 个计划帧的时间不短于一秒。
-const frameInterval = (time.Second + FPSLimit - 1) / FPSLimit
-
-type frameLimiter struct{ next time.Time }
-
-func (l *frameLimiter) delay(now time.Time) time.Duration {
+// Calculate how long to wait before the next frame.
+func (l *FrameLimiter) delay(now time.Time) time.Duration {
 	if l.next.IsZero() {
 		return 0
 	}
 	return max(0, l.next.Sub(now))
 }
 
-// 沿绝对时间表安排下一帧，不把 Sleep 的每次晚唤醒累加到帧周期。
-// 若已错过整帧则重新同步，不以连续补帧追赶长时间的卡顿。
-func (l *frameLimiter) step(now time.Time) {
-	if l.next.IsZero() || now.Sub(l.next) >= frameInterval {
-		l.next = now.Add(frameInterval)
+func (l *FrameLimiter) step(now time.Time, interval time.Duration) {
+	if l.next.IsZero() || now.Sub(l.next) >= interval {
+		l.next = now.Add(interval)
 		return
 	}
-	l.next = l.next.Add(frameInterval)
+	l.next = l.next.Add(interval)
 }
 
-// SetTPS 只控制逻辑更新频率，绘制仍需独立调度。
-func (l *frameLimiter) wait() {
+// Wait until the next scheduled frame.
+func (l *FrameLimiter) Wait(fps int) {
+	if fps <= 0 {
+		return
+	}
+
+	// Reset the schedule when FPS changes.
+	if l.fps != fps {
+		l.fps = fps
+		l.next = time.Time{}
+	}
+
+	interval := (time.Second + time.Duration(fps) - 1) / time.Duration(fps)
+
 	if delay := l.delay(time.Now()); delay > 0 {
 		time.Sleep(delay)
 	}
-	l.step(time.Now())
+
+	l.step(time.Now(), interval)
 }

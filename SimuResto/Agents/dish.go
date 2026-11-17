@@ -1,4 +1,4 @@
-package food
+package agents
 
 type Course string
 
