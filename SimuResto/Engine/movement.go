@@ -1,0 +1,95 @@
+package engine
+
+import (
+	agents "simuresto/SimuResto/Agents"
+	environment "simuresto/SimuResto/Environment"
+)
+
+// 只有队首可以前进；下一区域满员时，学生留在当前区域。
+func (e *engine) enter(student *studentState, area agents.Area) {
+	id, from := student.result.Student.ID, student.result.Area
+	if !e.queues[area].Enqueue(id) {
+		panic("simulation: transfer into a full queue")
+	}
+	student.result.Area = area
+	student.result.Path = append(student.result.Path, area)
+	student.started, student.ready, student.selfServiceRemaining = false, false, 0
+	e.stats.peakOccupancy[area] = max(e.stats.peakOccupancy[area], e.queues[area].Len())
+	e.emit(agents.Entered, id, 0, from, area)
+}
+
+func (e *engine) admit() {
+	if e.nextArrivalIndex >= len(e.arrivalStudent) || e.now < e.nextAdmissionTime {
+		return
+	}
+	student := e.arrivalStudent[e.nextArrivalIndex]
+	if student.result.Student.ArrivalTime > e.now {
+		return
+	}
+	// 每刻度最多放行一人，不补发积压；缓冲期间仍为 Scheduled，不启动智能体。
+	e.nextArrivalIndex++
+	e.nextAdmissionTime = e.now + environment.MinArrivalInterval
+	student.result.ArrivalTime = e.now
+	e.emit(agents.Arrived, student.result.Student.ID, 0, agents.NoArea, agents.NoArea)
+	area := agents.Outside
+	if e.queues[agents.Outside].Len() == 0 && e.queues[agents.Inside].Len() < e.queues[agents.Inside].Capacity() {
+		area = agents.Inside
+	}
+	if e.queues[area].Len() == e.queues[area].Capacity() {
+		// 看到队列已满而直接离开的学生，也属于放弃排队；同样占用本次放行间隔。
+		student.result.Status = agents.Abandoned
+		student.result.ExitTime = e.now
+		e.stats.finishedStudentCount++
+		e.emit(agents.LeftQueue, student.result.Student.ID, 0, agents.NoArea, agents.NoArea)
+		return
+	}
+	student.result.Status = agents.Active
+	e.enter(student, area)
+	e.startStudentAgent(student)
+	// 立即使用空余位置，并始终优先接纳已经在室外排队的学生。
+	e.moveForward()
+}
+
+// 往前走，前进一步
+func (e *engine) moveForward() {
+	route := agents.ServiceRoute()
+	for {
+		changed := false
+		for i := len(route) - 1; i >= 0; i-- {
+			area, queue := route[i], e.queues[route[i]]
+			for {
+				id, ok := queue.Front()
+				if !ok {
+					break
+				}
+
+				student := e.ID2Student[id]
+				if !area.IsWaitingArea() && !student.ready {
+					break
+				}
+
+				if area == agents.Payment {
+					queue.Dequeue()
+					// 关闭窗口后，已在付款的学生离开时才缩小容量。
+					_ = queue.Resize(max(e.config.Cashiers, queue.Len()))
+					student.result.Area = agents.NoArea
+					student.result.Status = agents.Completed
+					student.result.ExitTime = e.now
+					e.stats.finishedStudentCount++
+					e.emit(agents.Finished, id, 0, agents.Payment, agents.NoArea)
+				} else {
+					next := route[i+1]
+					if e.queues[next].Len() == e.queues[next].Capacity() {
+						break //full
+					}
+					queue.Dequeue()
+					e.enter(student, next)
+				}
+				changed = true
+			}
+		}
+		if !changed {
+			return
+		}
+	}
+}

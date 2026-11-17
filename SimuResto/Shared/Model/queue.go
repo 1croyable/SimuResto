@@ -1,6 +1,12 @@
+<<<<<<<< HEAD:SimuResto/Shared/Model/queue.go
 package model
+========
+package environment
+>>>>>>>> origin/yy-dev:SimuResto/Environment/queue.go
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // Queue : FIFO
 type Queue struct {
@@ -18,6 +24,15 @@ func NewQueue(capacity int) (*Queue, error) {
 func (q *Queue) Len() int      { return len(q.ids) }
 func (q *Queue) Capacity() int { return q.capacity }
 func (q *Queue) IDs() []int    { return append([]int(nil), q.ids...) }
+
+// Resize 调整容量，但不能挤出已经进入队列的学生。
+func (q *Queue) Resize(capacity int) error {
+	if capacity <= 0 || capacity < q.Len() {
+		return fmt.Errorf("queue capacity must be positive and fit its current students")
+	}
+	q.capacity = capacity
+	return nil
+}
 
 func (q *Queue) Enqueue(id int) bool {
 	if q.Len() == q.capacity {
