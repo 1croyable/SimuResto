@@ -147,7 +147,16 @@ func (engine *engine) advanceTowardCounter(
 		student.PlannedStarterIDs == nil &&
 		student.PositionAlongRoute >= tickInfo.starter1Position-20 {
 
-		student.PlanStarters(world.Menu)
+		decision := engine.requestStudentDecision(
+			student,
+			agents.StudentObservation{
+				ChooseStarters: true,
+				Dishes:         world.Menu,
+				Temperature:    world.Settings.ChoiceTemperature,
+			},
+		)
+
+		student.PlannedStarterIDs = decision.StarterIDs
 
 		for _, dishID := range student.PlannedStarterIDs {
 			for i := range world.Menu {
@@ -180,7 +189,7 @@ func (engine *engine) advanceTowardCounter(
 		}
 	}
 
-	var dishes []agents.DishOption
+	var dishes []agents.Dish
 	canStartService := false
 
 	switch {
@@ -190,15 +199,20 @@ func (engine *engine) advanceTowardCounter(
 	case beforeFood:
 		if atCounter && counter.StudentID == 0 {
 			for _, dish := range world.Menu {
-				if dish.Course == agents.Main && dish.Portions > 0 {
-					dishes = append(dishes, agents.DishOption{
-						ID: dish.ID,
-					})
+				if dish.Course != agents.Main || dish.Portions <= 0 {
+					continue
 				}
-			}
 
-			canStartService = len(dishes) > 0
+				// Vegetarian students can only choose vege
+				if student.Student.Vegetarian && !dish.Vegetarian {
+					continue
+				}
+
+				dishes = append(dishes, dish)
+			}
 		}
+
+		canStartService = len(dishes) > 0
 
 	default:
 		canStartService = atCounter && counter.StudentID == 0
@@ -273,7 +287,10 @@ func (engine *engine) advanceTowardCounter(
 		// Ask the same goroutine to select a main course.
 		choice := engine.requestStudentDecision(
 			student,
-			agents.StudentObservation{Dishes: dishes},
+			agents.StudentObservation{
+				Dishes:      dishes,
+				Temperature: world.Settings.ChoiceTemperature,
+			},
 		)
 
 		student.OrderedDishID = choice.DishID

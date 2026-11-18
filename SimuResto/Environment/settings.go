@@ -81,6 +81,8 @@ type Settings struct {
 	ServiceTime time.Duration
 	PaymentTime time.Duration
 	DiningTime  time.Duration
+
+	ChoiceTemperature float64 // food selection
 }
 
 func DefaultSettings() Settings {
@@ -101,6 +103,8 @@ func DefaultSettings() Settings {
 		ServiceTime: 2 * time.Second,
 		PaymentTime: 4 * time.Second,
 		DiningTime:  5 * time.Second,
+
+		ChoiceTemperature: 0.3,
 	}
 }
 

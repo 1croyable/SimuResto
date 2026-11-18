@@ -18,23 +18,23 @@ type StudentData struct {
 	ColorWeight   float64
 	TasteWeight   float64
 	SatietyWeight float64
-}
-
-type DishOption struct {
-	ID string
+	Vegetarian    bool
 }
 
 type StudentObservation struct {
-	CanLeave    bool
-	PeopleAhead int           // People ahead, including anyone currently being served.
-	Waiting     time.Duration // Total time spent
-	Elapsed     time.Duration // Time spent waiting during this update.
-	Dishes      []DishOption
+	CanLeave       bool
+	PeopleAhead    int           // People ahead, including anyone currently being served.
+	Waiting        time.Duration // Total time spent
+	Elapsed        time.Duration // Time spent waiting during this update.
+	Dishes         []Dish
+	Temperature    float64
+	ChooseStarters bool // Request starter selection.
 }
 
 type StudentDecision struct {
-	Leave  bool
-	DishID string
+	Leave      bool
+	DishID     string
+	StarterIDs []string
 }
 
 // Walk follows the route at walkingSpeed map units per second and returns the unused time.
@@ -64,17 +64,18 @@ func (studentStatus *StudentState) Walk(route []Point, walkingSpeed float64, dt 
 	return dt
 }
 
-func (studentStatus *StudentState) chooseDish(dishes []DishOption) string {
-	if len(dishes) == 0 {
-		return ""
+func (studentStatus *StudentState) Decide(state StudentObservation) StudentDecision {
+	// choose starters
+	if state.ChooseStarters {
+		return StudentDecision{
+			StarterIDs: studentStatus.PlanStarters(
+				state.Dishes,
+				state.Temperature,
+			),
+		}
 	}
 
-	randomDishIndex := studentStatus.randomGenerator.Intn(len(dishes))
-
-	return dishes[randomDishIndex].ID
-}
-
-func (studentStatus *StudentState) Decide(state StudentObservation) StudentDecision {
+	// choose to give up
 	if state.CanLeave && state.Elapsed > 0 {
 		probabilityPerSecond := randomness.LeaveProbability(studentStatus.Student.Patience, state.Waiting, state.PeopleAhead)
 
@@ -86,7 +87,14 @@ func (studentStatus *StudentState) Decide(state StudentObservation) StudentDecis
 		}
 	}
 
-	return StudentDecision{DishID: studentStatus.chooseDish(state.Dishes)}
+	// choose a main course if dishes are available
+	if len(state.Dishes) > 0 {
+		return StudentDecision{
+			DishID: studentStatus.chooseDish(state.Dishes, state.Temperature),
+		}
+	}
+
+	return StudentDecision{}
 }
 
 func NewStudentState(student StudentData, seed int64) StudentState {
@@ -98,8 +106,8 @@ func NewStudentState(student StudentData, seed int64) StudentState {
 	}
 }
 
-func (studentStatus *StudentState) PlanStarters(menu []Dish) {
-	studentStatus.PlannedStarterIDs = make([]string, 0, 2)
+func (studentStatus *StudentState) PlanStarters(menu []Dish, temperature float64) []string {
+	planned := make([]string, 0, 2)
 
 	portions := make([]int, len(menu))
 	for i, dish := range menu {
@@ -110,37 +118,46 @@ func (studentStatus *StudentState) PlanStarters(menu []Dish) {
 	tasteWeight := studentStatus.Student.TasteWeight
 	satietyWeight := studentStatus.Student.SatietyWeight
 
-	// For now, every student wants two starters.
-	for len(studentStatus.PlannedStarterIDs) < 2 {
-		bestIndex := -1
-		bestScore := -1.0
+	for len(planned) < 2 {
+		var candidates []int
+		var scores []float64
 
 		for i, dish := range menu {
 			if dish.Course != Starter || portions[i] <= 0 {
 				continue
 			}
 
-			score := randomness.StarterScore(dish, colorWeight, tasteWeight, satietyWeight, portions[i])
+			score := StarterScore(
+				dish, colorWeight, tasteWeight,
+				satietyWeight, portions[i],
+			)
 
-			// Reduce the score of the first selected dish by 40%.
-			if len(studentStatus.PlannedStarterIDs) > 0 &&
-				dish.ID == studentStatus.PlannedStarterIDs[0] {
+			// Reduce repeated selection score by 40%.
+			if len(planned) > 0 && dish.ID == planned[0] {
 				score *= 0.6
 			}
 
-			if score > bestScore {
-				bestScore = score
-				bestIndex = i
-			}
+			candidates = append(candidates, i)
+			scores = append(scores, score)
 		}
 
-		if bestIndex == -1 {
+		if len(candidates) == 0 {
 			break
 		}
 
-		studentStatus.PlannedStarterIDs = append(
-			studentStatus.PlannedStarterIDs, menu[bestIndex].ID,
+		selected := randomness.SoftmaxChoice(
+			scores,
+			temperature,
+			studentStatus.randomGenerator,
 		)
-		portions[bestIndex]--
+		if selected < 0 {
+			break
+		}
+
+		index := candidates[selected]
+		planned = append(planned, menu[index].ID)
+		portions[index]--
 	}
+
+	return planned
 }
