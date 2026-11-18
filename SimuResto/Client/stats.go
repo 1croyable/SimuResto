@@ -3,8 +3,10 @@ package client
 import (
 	"fmt"
 	"image/color"
+	"time"
 
 	agents "simuresto/SimuResto/Agents"
+	engine "simuresto/SimuResto/Engine"
 	environment "simuresto/SimuResto/Environment"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -66,88 +68,147 @@ func utilization(stats environment.CounterStatistics, elapsed float64) float64 {
 	return stats.TotalServiceTime.Seconds() / elapsed * 100
 }
 
-func DrawStats(screen *ebiten.Image, world *environment.Environment) {
-	// Student statistics
-	active, finished, abandoned := 0, 0, 0
+func DrawStats(screen *ebiten.Image, snapshot engine.Snapshot) {
+	metrics := snapshot.Metrics
+	stats := snapshot.Statistics
 
-	for _, student := range world.StudentStates {
-		switch student.Status {
-		case agents.Finished:
-			finished++
-		case agents.Abandoned:
-			abandoned++
-		case agents.Scheduled:
-			continue
-		default:
-			active++
-		}
-	}
+	// Simulation time.
+	seconds := int(snapshot.Duration / time.Second)
+	timeLabel := fmt.Sprintf(
+		"%02d:%02d:%02d",
+		seconds/3600,
+		(seconds/60)%60,
+		seconds%60,
+	)
 
-	queueLength := 0
-	if world.Queue != nil {
-		queueLength = len(world.Queue.IDs())
-	}
-
-	elapsed := world.TimePassed.Seconds()
-	seconds := int(elapsed)
-	timeLabel := fmt.Sprintf("%02d:%02d:%02d",
-		seconds/3600, (seconds/60)%60, seconds%60)
-
-	stats := &world.Statistics
-
-	// Left panel: global simulation statistics
+	// Left panel: global simulation statistics.
 	leftLines := []string{
 		"SIMURESTO - SIMULATION",
 		"",
 		fmt.Sprintf("Simulation time : %s", timeLabel),
-		fmt.Sprintf("Total students  : %d", len(world.StudentStates)),
-		fmt.Sprintf("Active students : %d", active),
-		fmt.Sprintf("Queue length    : %d", queueLength),
-		fmt.Sprintf("Maximum queue   : %d", stats.MaxQueueLength),
-		fmt.Sprintf("Finished        : %d", finished),
-		fmt.Sprintf("Abandoned       : %d", abandoned),
+		fmt.Sprintf("Total students  : %d", metrics.TotalStudents),
+		fmt.Sprintf("Scheduled       : %d", metrics.Scheduled),
+		fmt.Sprintf("Admitted        : %d", metrics.Admitted),
+		fmt.Sprintf("Active students : %d", metrics.Active),
+		fmt.Sprintf("Finished        : %d", metrics.Completed),
+		fmt.Sprintf("Abandoned       : %d", metrics.Abandoned),
 		"",
-		fmt.Sprintf("FPS / TPS       : %.1f / %.1f",
-			ebiten.ActualFPS(), ebiten.ActualTPS()),
+		"QUEUE",
+		fmt.Sprintf(
+			"Current / Capacity : %d / %d",
+			metrics.QueueLength,
+			metrics.QueueCapacity,
+		),
+		fmt.Sprintf("Maximum queue   : %d", metrics.MaxQueueLength),
+		fmt.Sprintf("Abandonment rate: %.1f%%", metrics.AbandonmentRate*100),
+		"",
+		"THROUGHPUT",
+		fmt.Sprintf("Payments done   : %d", metrics.MealsServed),
+		fmt.Sprintf("Meals / minute  : %.2f", metrics.MealsPerMinute),
+		fmt.Sprintf("Avg service wait: %.2f s",
+			metrics.AverageServiceWait.Seconds()),
+		"",
+		fmt.Sprintf(
+			"FPS / TPS       : %.1f / %.1f",
+			ebiten.ActualFPS(),
+			ebiten.ActualTPS(),
+		),
 	}
 
-	// Right panel: operational statistics
+	// Right panel: operational statistics.
 	rightLines := []string{
 		"SIMURESTO - OPERATIONS",
 		"",
 		"FOOD SERVICE",
-		fmt.Sprintf("Starter 1 : %d students / %d dishes",
+		fmt.Sprintf(
+			"Starter 1 : %d students / %d dishes",
 			stats.StarterCounters[0].StudentsServed,
-			stats.StarterCounters[0].DishesCollected),
-		fmt.Sprintf("Starter 2 : %d students / %d dishes",
+			stats.StarterCounters[0].DishesCollected,
+		),
+		fmt.Sprintf(
+			"Starter 2 : %d students / %d dishes",
 			stats.StarterCounters[1].StudentsServed,
-			stats.StarterCounters[1].DishesCollected),
-		fmt.Sprintf("Main      : %d dishes",
-			stats.MainCounter.DishesCollected),
-		fmt.Sprintf("Cashier   : %d students",
-			stats.CashierCounter.StudentsServed),
+			stats.StarterCounters[1].DishesCollected,
+		),
+		fmt.Sprintf(
+			"Main      : %d dishes",
+			stats.MainCounter.DishesCollected,
+		),
+		fmt.Sprintf(
+			"Cashier   : %d students",
+			stats.CashierCounter.StudentsServed,
+		),
 		"",
 		"AVERAGE WAITING TIME",
-		fmt.Sprintf("Starter 1 : %.2f s", averageWait(stats.StarterCounters[0])),
-		fmt.Sprintf("Starter 2 : %.2f s", averageWait(stats.StarterCounters[1])),
-		fmt.Sprintf("Main      : %.2f s", averageWait(stats.MainCounter)),
-		fmt.Sprintf("Cashier   : %.2f s", averageWait(stats.CashierCounter)),
+		fmt.Sprintf(
+			"Starter 1 : %.2f s",
+			metrics.AverageWaitByCounter["Starter 1"].Seconds(),
+		),
+		fmt.Sprintf(
+			"Starter 2 : %.2f s",
+			metrics.AverageWaitByCounter["Starter 2"].Seconds(),
+		),
+		fmt.Sprintf(
+			"Main      : %.2f s",
+			metrics.AverageWaitByCounter["Main"].Seconds(),
+		),
+		fmt.Sprintf(
+			"Cashier   : %.2f s",
+			metrics.AverageWaitByCounter["Cashier"].Seconds(),
+		),
+		"",
+		"MAXIMUM WAITING TIME",
+		fmt.Sprintf(
+			"Starter 1 : %.2f s",
+			metrics.MaxWaitByCounter["Starter 1"].Seconds(),
+		),
+		fmt.Sprintf(
+			"Starter 2 : %.2f s",
+			metrics.MaxWaitByCounter["Starter 2"].Seconds(),
+		),
+		fmt.Sprintf(
+			"Main      : %.2f s",
+			metrics.MaxWaitByCounter["Main"].Seconds(),
+		),
+		fmt.Sprintf(
+			"Cashier   : %.2f s",
+			metrics.MaxWaitByCounter["Cashier"].Seconds(),
+		),
 		"",
 		"STAFF UTILIZATION",
-		fmt.Sprintf("Cook      : %.1f%%", utilization(stats.MainCounter, elapsed)),
-		fmt.Sprintf("Cashier   : %.1f%%", utilization(stats.CashierCounter, elapsed)),
+		fmt.Sprintf(
+			"Cook      : %.1f%%",
+			metrics.StaffUtilization[agents.Server],
+		),
+		fmt.Sprintf(
+			"Cashier   : %.1f%%",
+			metrics.StaffUtilization[agents.Cashier],
+		),
 		"",
-		"AVAILABLE FOOD STOCK",
+		"FOOD STOCK (AVAILABLE / RESERVED / COLLECTED)",
 	}
 
-	for _, dish := range world.Menu {
+	for _, stock := range snapshot.Stock {
 		rightLines = append(rightLines,
-			fmt.Sprintf("%-18s : %d", dish.Name, dish.Portions))
+			fmt.Sprintf(
+				"%-15.15s : %d / %d / %d",
+				stock.Dish.Name,
+				stock.Dish.Portions,
+				stock.Reserved,
+				stock.Collected,
+			),
+		)
 	}
 
 	const panelWidth = 430
 	const margin = 10
 
 	DrawStatsPanel(screen, leftLines, margin, margin, panelWidth)
-	DrawStatsPanel(screen, rightLines, environment.Width-panelWidth-margin, margin, panelWidth)
+	DrawStatsPanel(
+		screen,
+		rightLines,
+		environment.Width-panelWidth-margin,
+		margin,
+		panelWidth,
+	)
 }

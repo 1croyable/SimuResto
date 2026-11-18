@@ -58,9 +58,7 @@ func (g *Game) Update() error {
 				g.Mode = client.Running
 			} else if client.MenuButtonHit(x, y, client.Button2Y) {
 				// Restart
-				g.Simulation.World = environment.New(g.Settings)
-				g.tickRemainder = 0
-				g.Mode = client.Running
+				g.startSimulation()
 			} else if client.MenuButtonHit(x, y, client.Button3Y) {
 				g.closeSimulation()
 				g.tickRemainder = 0
@@ -88,81 +86,96 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	// Frame pacing belongs to the client; the engine only receives simulated time.
 	g.frameLimiter.Wait(g.Settings.FramesPerSecond)
 
 	screen.Fill(color.White)
+
 	if g.Mode == client.Home {
 		client.DrawMenu(screen, client.Home)
 		return
 	}
 
-	world := g.Simulation.World
+	// Read the cached snapshot from Engine.
+	snapshot := g.Simulation.Snapshot()
+	layout := snapshot.Layout
 
 	roadColor := color.RGBA{R: 96, G: 96, B: 96, A: 255}
 	foodColor := color.RGBA{R: 224, G: 224, B: 224, A: 255}
 	starterColor := color.RGBA{R: 180, G: 220, B: 180, A: 255}
 
-	for _, region := range world.StarterRegions {
+	// Starter counters
+	for _, region := range layout.StarterRegions {
 		vector.FillRect(screen, region.X, region.Y, region.Width, region.Height, starterColor, false)
 	}
 
-	vector.FillRect(screen, world.MainRegion.X, world.MainRegion.Y, world.MainRegion.Width, world.MainRegion.Height, foodColor, false)
-	vector.FillRect(screen, world.CashierRegion.X, world.CashierRegion.Y, world.CashierRegion.Width, world.CashierRegion.Height, foodColor, false)
+	// Main course counter
+	vector.FillRect(screen, layout.MainRegion.X, layout.MainRegion.Y, layout.MainRegion.Width, layout.MainRegion.Height, foodColor, false)
 
-	for _, area := range world.DiningAreas {
-		vector.FillRect(screen, area.Region.X, area.Region.Y, area.Region.Width, area.Region.Height, color.RGBA{R: 224, G: 234, B: 228, A: 255}, false)
+	// Cashier counter
+	vector.FillRect(screen, layout.CashierRegion.X, layout.CashierRegion.Y, layout.CashierRegion.Width, layout.CashierRegion.Height, foodColor, false)
+
+	// Dining areas
+	for _, area := range layout.DiningAreas {
+		region := area.Region
+		vector.FillRect(screen, region.X, region.Y, region.Width, region.Height, color.RGBA{R: 224, G: 234, B: 228, A: 255}, false)
 	}
 
-	vector.FillRect(screen, world.WasteRegion.X, world.WasteRegion.Y, world.WasteRegion.Width, world.WasteRegion.Height, color.RGBA{R: 237, G: 225, B: 210, A: 255}, false)
+	// Waste area
+	vector.FillRect(screen, layout.WasteRegion.X, layout.WasteRegion.Y, layout.WasteRegion.Width, layout.WasteRegion.Height, color.RGBA{R: 237, G: 225, B: 210, A: 255}, false)
 
-	for _, road := range world.Roads {
+	// Roads
+	for _, road := range layout.Roads {
 		vector.FillRect(screen, road.X, road.Y, road.Width, road.Height, roadColor, false)
 	}
 
-	ebitenutil.DebugPrintAt(screen, "Exit >", environment.Width-58, 512)
+	ebitenutil.DebugPrintAt(
+		screen, "Exit >", environment.Width-58, 512,
+	)
 
-	cook := world.Cook.Position
-	vector.FillCircle(screen, float32(cook.X), float32(cook.Y), 15,
-		color.RGBA{R: 225, G: 140, B: 45, A: 255}, true)
-	cashierColor := color.RGBA{R: 120, G: 120, B: 120, A: 255}
-	if world.Cashier.StudentID != 0 {
-		cashierColor = color.RGBA{R: 225, G: 140, B: 45, A: 255}
+	// Staff
+	for _, worker := range snapshot.Staff {
+		fill := color.RGBA{R: 225, G: 140, B: 45, A: 255}
+
+		// Idle cashier is displayed in gray.
+		if worker.Staff.Role == agents.Cashier &&
+			worker.StudentID == 0 {
+			fill = color.RGBA{R: 120, G: 120, B: 120, A: 255}
+		}
+
+		vector.FillCircle(screen, float32(worker.Position.X), float32(worker.Position.Y), 15, fill, true)
 	}
 
-	register := world.Cashier.Position
-	vector.FillCircle(screen, float32(register.X), float32(register.Y), 15, cashierColor, true)
+	// Students
+	for _, student := range snapshot.Students {
+		switch student.Status {
+		case agents.Finished, agents.Abandoned, agents.Scheduled:
+			continue
+		}
 
-	finished, abandoned := 0, 0
-	for _, student := range world.StudentStates {
-		if student.Status == agents.Finished {
-			finished++
-			continue
-		}
-		if student.Status == agents.Abandoned {
-			abandoned++
-			continue
-		}
-		if student.Status == agents.Scheduled {
-			continue
-		}
 		fill := color.RGBA{R: 65, G: 140, B: 220, A: 255}
-		if student.Status == agents.Serving || student.Status == agents.Paying {
+
+		if student.Status == agents.Serving ||
+			student.Status == agents.Paying {
 			fill = color.RGBA{R: 225, G: 140, B: 45, A: 255}
 		}
+
 		vector.FillCircle(screen, float32(student.Position.X), float32(student.Position.Y), 6, fill, true)
 
-		isWalkingToExit := student.Status == agents.Walking && student.Target == agents.TargetExit
+		// Show a green indicator when carrying a main course.
+		isWalkingToExit := student.Status == agents.Walking &&
+			student.Target == agents.TargetExit
+
 		if student.Meal.Main != nil && !isWalkingToExit {
-			vector.FillCircle(screen, float32(student.Position.X)+8, float32(student.Position.Y), 3,
-				color.RGBA{R: 90, G: 190, B: 90, A: 255}, true)
+			vector.FillCircle(screen, float32(student.Position.X)+8, float32(student.Position.Y), 3, color.RGBA{R: 90, G: 190, B: 90, A: 255}, true)
 		}
 	}
 
+	// F3 statistics overlay
 	if g.showStats {
-		client.DrawStats(screen, world)
+		client.DrawStats(screen, snapshot)
 	}
 
+	// Pause menu overlay
 	if g.Mode == client.Paused {
 		client.DrawMenu(screen, client.Paused)
 	}

@@ -9,17 +9,22 @@ import (
 )
 
 type Game struct {
-	engine *engine
-	World  *environment.Environment
-	done   bool
-	err    error
+	engine   *engine
+	World    *environment.Environment
+	snapshot Snapshot
+	done     bool
+	err      error
 }
 
 func NewGame(world *environment.Environment) *Game {
-	return &Game{
+	g := &Game{
 		World:  world,
 		engine: newEngine(),
 	}
+
+	g.snapshot = buildSnapshot(world, false, Snapshot{})
+
+	return g
 }
 
 // SetCashiers 调整开放窗口数量，与 Step 一样由调用方串行调用。
@@ -76,6 +81,8 @@ func (g *Game) Step(dt time.Duration) {
 
 	// fill places freed by payment or abandonment during this step
 	engine.admitStudents(world, arrivedStudents)
+
+	g.snapshot = buildSnapshot(g.World, g.done, g.snapshot)
 }
 
 func (g *Game) finish(err error) (bool, error) {
@@ -86,6 +93,8 @@ func (g *Game) finish(err error) (bool, error) {
 	g.done = true
 	g.err = err
 	g.engine.closeAgents()
+
+	g.snapshot = buildSnapshot(g.World, true, g.snapshot)
 	return true, err
 }
 
@@ -93,5 +102,6 @@ func (g *Game) Close() {
 	g.finish(nil)
 }
 
-// Report 返回独立副本，调用方修改它不会影响模拟。
-func (g *Game) Report() Report { return cloneReport(g.engine.report()) }
+func (g *Game) Report() Report {
+	return g.Snapshot().Report
+}
