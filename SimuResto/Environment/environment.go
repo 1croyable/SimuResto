@@ -18,10 +18,11 @@ type Region struct {
 }
 
 type DiningArea struct {
-	Name         string
-	Region       Region
-	Route        []agents.Point
-	CleanupRoute []agents.Point
+	Name              string
+	Region            Region
+	Route             []agents.Point
+	UpperCashierRoute []agents.Point
+	CleanupRoute      []agents.Point
 }
 
 // the engine updates it and the client draws it.
@@ -33,8 +34,10 @@ type Environment struct {
 	StarterRegions [2]Region
 	MainRegion     Region
 	CashierRegion  Region
-	DiningAreas    [3]DiningArea
+	Cashier2Region Region
 	WasteRegion    Region
+
+	DiningAreas [3]DiningArea
 
 	Route         []agents.Point
 	Starter2Route []agents.Point
@@ -42,10 +45,13 @@ type Environment struct {
 	CheckoutRoute []agents.Point
 	ExitRoute     []agents.Point
 
+	Checkout2Route    []agents.Point
+	Cashier2ExitRoute []agents.Point
+
 	StudentStates []agents.StudentState
 	StudentsByID  map[int]*agents.StudentState
 	Cook          agents.StaffState
-	Cashier       agents.StaffState
+	Cashiers      [MaxCashiers]agents.StaffState
 
 	Menu []agents.Dish
 
@@ -66,8 +72,9 @@ func New(settings Settings) *Environment {
 			{130, 570, 90, 45},
 			{230, 570, 90, 45},
 		},
-		MainRegion:    Region{330, 550, 235, 150},
-		CashierRegion: Region{610, 550, 125, 150},
+		MainRegion:     Region{330, 550, 235, 150},
+		CashierRegion:  Region{610, 550, 125, 150},
+		Cashier2Region: Region{610, 405, 125, 40},
 		DiningAreas: [3]DiningArea{
 			{Name: "Window dining", Region: Region{180, 120, 820, 55}},
 			{Name: "Left dining", Region: Region{130, 200, 605, 265}},
@@ -81,6 +88,22 @@ func New(settings Settings) *Environment {
 			{X: 65, Y: 90},
 			{X: 65, Y: lowerRoadY},
 			{X: 175, Y: lowerRoadY},
+		},
+
+		Checkout2Route: []agents.Point{
+			{X: 540, Y: 520},
+			{X: 558, Y: 518},
+			{X: 571, Y: 511},
+			{X: 579, Y: 497},
+			{X: 588, Y: 486},
+			{X: 602, Y: 477},
+			{X: 620, Y: 472},
+			{X: 645, Y: 470},
+			{X: 670, Y: 470},
+		},
+
+		Cashier2ExitRoute: []agents.Point{
+			{X: 770, Y: 470},
 		},
 
 		// Starter 1 → Starter 2
@@ -98,10 +121,26 @@ func New(settings Settings) *Environment {
 			Staff:    agents.StaffData{ID: 1, Role: agents.Server, ServiceTime: settings.ServiceTime},
 			Position: agents.Point{X: 447.5, Y: 625},
 		},
-		Cashier: agents.StaffState{
-			Staff:    agents.StaffData{ID: 2, Role: agents.Cashier, ServiceTime: settings.PaymentTime},
-			Position: agents.Point{X: 670, Y: 585},
+
+		Cashiers: [MaxCashiers]agents.StaffState{
+			{
+				Staff: agents.StaffData{
+					ID:          2,
+					Role:        agents.Cashier,
+					ServiceTime: settings.PaymentTime,
+				},
+				Position: agents.Point{X: 645, Y: 585},
+			},
+			{
+				Staff: agents.StaffData{
+					ID:          3,
+					Role:        agents.Cashier,
+					ServiceTime: settings.PaymentTime,
+				},
+				Position: agents.Point{X: 645, Y: 425},
+			},
 		},
+
 		Menu: []agents.Dish{
 			{ID: "salad", Name: "Green salad", Course: agents.Starter, Vegetarian: true,
 				Portions: settings.StudentCount, ColorScore: 0.9, TasteScore: 0.7, SatietyScore: 0.3, StarterCounter: 1},
@@ -123,7 +162,12 @@ func New(settings Settings) *Environment {
 		region := area.Region
 		seat := agents.Point{X: float64(region.X + region.Width/2), Y: float64(region.Y + region.Height/2)}
 		aisleTurn := agents.Point{X: diningAisleX, Y: seat.Y}
+
 		area.Route = []agents.Point{aisleEntrance, aisleTurn, seat}
+
+		upperEntrance := agents.Point{X: diningAisleX, Y: 470}
+		area.UpperCashierRoute = []agents.Point{upperEntrance, aisleTurn, seat}
+
 		area.CleanupRoute = []agents.Point{aisleTurn, aisleEntrance, {X: wasteStop.X, Y: lowerRoadY}, wasteStop}
 	}
 

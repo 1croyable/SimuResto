@@ -103,6 +103,7 @@ func NewStudentState(student StudentData, seed int64) StudentState {
 		Student:         student,
 		Status:          Scheduled,
 		randomGenerator: rand.New(rand.NewSource(studentSeed)),
+		CashierIndex:    -1,
 	}
 }
 

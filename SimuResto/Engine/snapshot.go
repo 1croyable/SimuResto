@@ -50,24 +50,30 @@ type ZoneSnapshot struct {
 }
 
 type DiningAreaSnapshot struct {
-	Name         string
-	Region       environment.Region
-	Route        []agents.Point
-	CleanupRoute []agents.Point
+	Name              string
+	Region            environment.Region
+	Route             []agents.Point
+	CleanupRoute      []agents.Point
+	UpperCashierRoute []agents.Point
 }
 
 type LayoutSnapshot struct {
 	Roads          []environment.Region
 	StarterRegions [2]environment.Region
 	MainRegion     environment.Region
-	CashierRegion  environment.Region
 	DiningAreas    [3]DiningAreaSnapshot
 	WasteRegion    environment.Region
 	Route          []agents.Point
 	Starter2Route  []agents.Point
 	MainRoute      []agents.Point
-	CheckoutRoute  []agents.Point
+
+	Cashier1Region environment.Region
+	Checkout1Route []agents.Point
 	ExitRoute      []agents.Point
+
+	Cashier2Region    environment.Region
+	Checkout2Route    []agents.Point
+	Cashier2ExitRoute []agents.Point
 }
 
 type Metrics struct {
@@ -133,23 +139,27 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 			PeakOccupancy: make(map[agents.StudentTarget]int),
 		},
 		Layout: LayoutSnapshot{
-			Roads:          append([]environment.Region(nil), world.Roads...),
-			StarterRegions: world.StarterRegions,
-			MainRegion:     world.MainRegion,
-			CashierRegion:  world.CashierRegion,
-			WasteRegion:    world.WasteRegion,
-			Route:          append([]agents.Point(nil), world.Route...),
-			Starter2Route:  append([]agents.Point(nil), world.Starter2Route...),
-			MainRoute:      append([]agents.Point(nil), world.MainRoute...),
-			CheckoutRoute:  append([]agents.Point(nil), world.CheckoutRoute...),
-			ExitRoute:      append([]agents.Point(nil), world.ExitRoute...),
+			Roads:             append([]environment.Region(nil), world.Roads...),
+			StarterRegions:    world.StarterRegions,
+			MainRegion:        world.MainRegion,
+			Cashier1Region:    world.CashierRegion,
+			WasteRegion:       world.WasteRegion,
+			Route:             append([]agents.Point(nil), world.Route...),
+			Starter2Route:     append([]agents.Point(nil), world.Starter2Route...),
+			MainRoute:         append([]agents.Point(nil), world.MainRoute...),
+			Checkout1Route:    append([]agents.Point(nil), world.CheckoutRoute...),
+			ExitRoute:         append([]agents.Point(nil), world.ExitRoute...),
+			Cashier2Region:    world.Cashier2Region,
+			Checkout2Route:    append([]agents.Point(nil), world.Checkout2Route...),
+			Cashier2ExitRoute: append([]agents.Point(nil), world.Cashier2ExitRoute...),
 		},
 	}
 	for i, area := range world.DiningAreas {
 		s.Layout.DiningAreas[i] = DiningAreaSnapshot{
 			Name: area.Name, Region: area.Region,
-			Route:        append([]agents.Point(nil), area.Route...),
-			CleanupRoute: append([]agents.Point(nil), area.CleanupRoute...),
+			Route:             append([]agents.Point(nil), area.Route...),
+			CleanupRoute:      append([]agents.Point(nil), area.CleanupRoute...),
+			UpperCashierRoute: append([]agents.Point(nil), area.UpperCashierRoute...),
 		}
 	}
 	if world.Queue != nil {
@@ -259,21 +269,34 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 	}
 	s.Metrics.StaffUtilization[agents.Server] = staffUtilization(world.Statistics.MainCounter, world.TimePassed)
 	s.Metrics.StaffUtilization[agents.Cashier] = staffUtilization(world.Statistics.CashierCounter, world.TimePassed)
+	// Cook
 	s.Staff = []WorkerSnapshot{
 		{
-			Staff: world.Cook.Staff, Position: world.Cook.Position,
-			StudentID: world.Cook.StudentID, ServiceTimeLeft: world.Cook.ServiceTimeLeft,
-			Served:      world.Statistics.MainCounter.StudentsServed,
-			BusyTime:    world.Statistics.MainCounter.TotalServiceTime,
-			Utilization: s.Metrics.StaffUtilization[agents.Server],
+			Staff:           world.Cook.Staff,
+			Position:        world.Cook.Position,
+			StudentID:       world.Cook.StudentID,
+			ServiceTimeLeft: world.Cook.ServiceTimeLeft,
+			Served:          world.Statistics.MainCounter.StudentsServed,
+			BusyTime:        world.Statistics.MainCounter.TotalServiceTime,
+			Utilization:     s.Metrics.StaffUtilization[agents.Server],
 		},
-		{
-			Staff: world.Cashier.Staff, Position: world.Cashier.Position,
-			StudentID: world.Cashier.StudentID, ServiceTimeLeft: world.Cashier.ServiceTimeLeft,
-			Served:      world.Statistics.CashierCounter.StudentsServed,
-			BusyTime:    world.Statistics.CashierCounter.TotalServiceTime,
-			Utilization: s.Metrics.StaffUtilization[agents.Cashier],
-		},
+	}
+
+	// Cashiers
+	for i := range world.Cashiers {
+		cashier := &world.Cashiers[i]
+
+		// Hide inactive cashiers unless they are finishing a service.
+		if i >= world.Settings.Cashiers && cashier.StudentID == 0 {
+			continue
+		}
+
+		s.Staff = append(s.Staff, WorkerSnapshot{
+			Staff:           cashier.Staff,
+			Position:        cashier.Position,
+			StudentID:       cashier.StudentID,
+			ServiceTimeLeft: cashier.ServiceTimeLeft,
+		})
 	}
 	return s
 }
@@ -300,16 +323,27 @@ func cloneSnapshot(source Snapshot) Snapshot {
 	s.Layout.Route = append([]agents.Point(nil), source.Layout.Route...)
 	s.Layout.Starter2Route = append([]agents.Point(nil), source.Layout.Starter2Route...)
 	s.Layout.MainRoute = append([]agents.Point(nil), source.Layout.MainRoute...)
-	s.Layout.CheckoutRoute = append([]agents.Point(nil), source.Layout.CheckoutRoute...)
+	s.Layout.Checkout1Route = append([]agents.Point(nil), source.Layout.Checkout1Route...)
 	s.Layout.ExitRoute = append([]agents.Point(nil), source.Layout.ExitRoute...)
 	for i := range s.Layout.DiningAreas {
 		s.Layout.DiningAreas[i].Route = append([]agents.Point(nil), source.Layout.DiningAreas[i].Route...)
 		s.Layout.DiningAreas[i].CleanupRoute = append([]agents.Point(nil), source.Layout.DiningAreas[i].CleanupRoute...)
 	}
+	s.Layout.Checkout2Route = append([]agents.Point(nil), source.Layout.Checkout2Route...)
+	s.Layout.Cashier2ExitRoute = append([]agents.Point(nil), source.Layout.Cashier2ExitRoute...)
+
+	for i := range s.Layout.DiningAreas {
+		s.Layout.DiningAreas[i].UpperCashierRoute = append(
+			[]agents.Point(nil),
+			source.Layout.DiningAreas[i].UpperCashierRoute...,
+		)
+	}
+
 	s.PeakOccupancy = make(map[agents.StudentTarget]int, len(source.PeakOccupancy))
 	for k, v := range source.PeakOccupancy {
 		s.PeakOccupancy[k] = v
 	}
+
 	s.Metrics.AverageWaitByCounter = make(map[string]time.Duration, len(source.Metrics.AverageWaitByCounter))
 	for k, v := range source.Metrics.AverageWaitByCounter {
 		s.Metrics.AverageWaitByCounter[k] = v

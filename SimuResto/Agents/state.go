@@ -32,6 +32,8 @@ type StudentState struct {
 	RemainingStarterPickup time.Duration // collecting starters may take several simulation updates
 
 	PlannedStarterIDs []string
+
+	CashierIndex int // 0 lower cahier, 1 upper
 }
 
 type StaffState struct {

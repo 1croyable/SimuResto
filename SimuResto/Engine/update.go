@@ -16,13 +16,13 @@ type queueTick struct {
 	starter2End int
 	mainEnd     int
 
-	starter1Position float64
-	starter2Position float64
-	mainPosition     float64
-	paymentPosition  float64
+	starter1Position     float64
+	starter2Position     float64
+	mainPosition         float64
+	checkoutForkPosition float64
 
 	foodCounterFreeAt    time.Duration
-	paymentCounterFreeAt time.Duration
+	paymentCounterFreeAt [environment.MaxCashiers]time.Duration
 
 	dt time.Duration
 }
@@ -32,10 +32,16 @@ func (engine *engine) advanceQueue(world *environment.Environment, dt time.Durat
 		return
 	}
 
+	// The common FIFO line ends at the checkout fork, not at either cashier.
+	// Checkout2Route[0] is the fork point (e.g. 540, 520).
+	if len(world.Checkout2Route) == 0 {
+		return
+	}
+	fork := world.Checkout2Route[0]
 	route := append([]agents.Point(nil), world.Route...)
 	route = append(route, world.Starter2Route...)
 	route = append(route, world.MainRoute...)
-	route = append(route, world.CheckoutRoute...)
+	route = append(route, fork)
 
 	q := queueTick{
 		route:       route,
@@ -49,9 +55,9 @@ func (engine *engine) advanceQueue(world *environment.Environment, dt time.Durat
 	q.starter1Position = routeLength(route[:q.starter1End])
 	q.starter2Position = routeLength(route[:q.starter2End])
 	q.mainPosition = routeLength(route[:q.mainEnd])
-	q.paymentPosition = routeLength(route)
+	q.checkoutForkPosition = routeLength(route)
 
-	personAheadPosition := q.paymentPosition + world.Settings.QueueSpacing
+	personAheadPosition := q.checkoutForkPosition + world.Settings.QueueSpacing
 	peopleAhead := 0
 
 	// calculate one by one from the front
@@ -64,13 +70,17 @@ func (engine *engine) advanceQueue(world *environment.Environment, dt time.Durat
 			switch student.Status {
 
 			case agents.Walking, agents.WaitingForFood, agents.WaitingForPayment:
-				leftQueue = engine.advanceTowardCounter(world, student, id, &q, &remainingTime, personAheadPosition, peopleAhead)
+				if student.Target == agents.TargetCashier && student.CashierIndex >= 0 {
+					leftQueue = engine.advanceAssignedCashier(world, student, id, &q, &remainingTime)
+				} else {
+					leftQueue = engine.advanceTowardCounter(world, student, id, &q, &remainingTime, personAheadPosition, peopleAhead)
+				}
 
 			case agents.Serving:
 				advanceFoodService(world, student, &q, &remainingTime)
 
 			case agents.Paying:
-				leftQueue = advancePayment(world, student, id, &q, &remainingTime)
+				leftQueue = engine.advancePayment(world, student, id, &q, &remainingTime)
 
 			default:
 				remainingTime = 0
@@ -78,10 +88,125 @@ func (engine *engine) advanceQueue(world *environment.Environment, dt time.Durat
 		}
 
 		if !leftQueue {
-			personAheadPosition = student.PositionAlongRoute
-			peopleAhead++
+			// A dispatched student leaves the common waiting line, but still
+			// blocks the fork until sufficiently far along their branch.
+			if student.Target == agents.TargetCashier && student.CashierIndex >= 0 {
+				if student.PositionAlongRoute < q.checkoutForkPosition+world.Settings.QueueSpacing {
+					personAheadPosition = student.PositionAlongRoute
+					peopleAhead++
+				}
+			} else {
+				personAheadPosition = student.PositionAlongRoute
+				peopleAhead++
+			}
 		}
 	}
+}
+
+// Find an open cashier without a customer in service or en route.
+// This reservation is necessary: the student must walk from the fork
+// to the chosen counter before the StaffAgent accepts them.
+func findAvailableCashier(world *environment.Environment, tickInfo *queueTick) (int, time.Duration) {
+	selected := -1
+	var freeAt time.Duration
+
+	for i := 0; i < len(world.Cashiers) && i < world.Settings.Cashiers; i++ {
+		if world.Cashiers[i].StudentID != 0 {
+			continue
+		}
+
+		reserved := false
+		for _, id := range world.Queue.IDs() {
+			other := world.StudentsByID[id]
+			if other.Target == agents.TargetCashier && other.CashierIndex == i {
+				reserved = true
+				break
+			}
+		}
+		if reserved {
+			continue
+		}
+
+		if selected == -1 || tickInfo.paymentCounterFreeAt[i] < freeAt {
+			selected = i
+			freeAt = tickInfo.paymentCounterFreeAt[i]
+		}
+	}
+
+	return selected, freeAt
+}
+
+// Follow the selected checkout branch, then start payment only after arrival.
+func (engine *engine) advanceAssignedCashier(
+	world *environment.Environment,
+	student *agents.StudentState,
+	id int,
+	tickInfo *queueTick,
+	remainingTime *time.Duration,
+) bool {
+	i := student.CashierIndex
+	if i < 0 || i >= len(world.Cashiers) {
+		*remainingTime = 0
+		return false
+	}
+
+	branch := world.CheckoutRoute // Cashier 1: original lower route.
+	if i == 1 {
+		branch = world.Checkout2Route // Cashier 2: curved upper route.
+	}
+	if len(branch) == 0 {
+		*remainingTime = 0
+		return false
+	}
+
+	if student.NextWaypoint < len(branch) {
+		before := *remainingTime
+		*remainingTime = student.Walk(branch, world.Settings.WalkingSpeed, *remainingTime)
+		walked := before - *remainingTime
+		student.PositionAlongRoute += world.Settings.WalkingSpeed * walked.Seconds()
+
+		if student.NextWaypoint < len(branch) {
+			return false // Still walking towards the assigned counter.
+		}
+	}
+
+	student.Status = agents.WaitingForPayment
+	cashier := &world.Cashiers[i]
+
+	// A cashier may become available partway through this tick.
+	used := tickInfo.dt - *remainingTime
+	if freeAt := tickInfo.paymentCounterFreeAt[i]; freeAt > used {
+		wait := min(*remainingTime, freeAt-used)
+		student.QueueWait += wait
+		*remainingTime -= wait
+		if tickInfo.dt-*remainingTime < freeAt {
+			return false
+		}
+	}
+	if cashier.StudentID != 0 && cashier.StudentID != id {
+		student.QueueWait += *remainingTime
+		*remainingTime = 0
+		return false
+	}
+
+	if cashier.StudentID == 0 {
+		decision := engine.requestStaffDecision(cashier, agents.StaffObservation{
+			NextStudentID: id,
+			QueueLength:   world.Queue.Len(),
+			Elapsed:       0,
+			Open:          true, // An already assigned customer can finish after closing.
+		})
+		if decision.AcceptedStudentID != id {
+			student.QueueWait += *remainingTime
+			*remainingTime = 0
+			return false
+		}
+		cashier.StudentID = id
+		cashier.ServiceTimeLeft = decision.RemainingTime
+	}
+
+	student.Status = agents.Paying
+	return false // advanceQueue will call advancePayment in the same tick if time remains.
 }
 
 // Handle walking, queue spacing, waiting, and starting a service.
@@ -99,9 +224,10 @@ func (engine *engine) advanceTowardCounter(
 	pickingStarter := student.Target == agents.TargetStarter1 ||
 		student.Target == agents.TargetStarter2
 
-	counter := &world.Cashier
-	counterPosition := tickInfo.paymentPosition
-	counterFreeAt := tickInfo.paymentCounterFreeAt
+	var counter *agents.StaffState
+	counterPosition := tickInfo.checkoutForkPosition
+	counterFreeAt := time.Duration(0)
+	cashierIndex := -1
 
 	switch student.Target {
 	case agents.TargetMain:
@@ -215,7 +341,11 @@ func (engine *engine) advanceTowardCounter(
 		canStartService = len(dishes) > 0
 
 	default:
-		canStartService = atCounter && counter.StudentID == 0
+		// Select an available cashier for payment.
+		if atCounter {
+			cashierIndex, counterFreeAt = findAvailableCashier(world, tickInfo)
+			canStartService = cashierIndex >= 0
+		}
 	}
 
 	waitingTime := *remainingTime
@@ -254,7 +384,7 @@ func (engine *engine) advanceTowardCounter(
 		return true
 	}
 
-	if !canStartService || *remainingTime == 0 {
+	if !canStartService || (*remainingTime == 0 && student.Target != agents.TargetCashier) {
 		switch {
 		case student.Target == agents.TargetCashier:
 			student.Status = agents.WaitingForPayment
@@ -299,12 +429,14 @@ func (engine *engine) advanceTowardCounter(
 		student.Status = agents.Serving
 
 	default:
-		student.Position = tickInfo.route[len(tickInfo.route)-1]
-		student.NextWaypoint = len(tickInfo.route)
-		student.Status = agents.Paying
+		// At the fork, reserve the available cashier. The student must
+		// walk down its branch before the StaffAgent starts payment.
+		student.CashierIndex = cashierIndex
+		student.NextWaypoint = 0 // Waypoint index is now local to the branch.
+		student.Status = agents.Walking
 	}
 
-	if !pickingStarter {
+	if beforeFood {
 		counter.StudentID = id
 		counter.ServiceTimeLeft = counter.Staff.ServiceTime
 	}
@@ -382,30 +514,60 @@ func advanceFoodService(world *environment.Environment, student *agents.StudentS
 }
 
 // Handle payment and departure from the queue.
-func advancePayment(
+func (engine *engine) advancePayment(
 	world *environment.Environment,
 	student *agents.StudentState,
 	id int,
 	tickInfo *queueTick,
 	remainingTime *time.Duration,
 ) bool {
-	busyTime := world.Cashier.AdvanceService(*remainingTime)
-	*remainingTime -= busyTime
+	// Find the cashier currently serving this student.
+	cashierIndex := -1
+
+	for i := range world.Cashiers {
+		if world.Cashiers[i].StudentID == id {
+			cashierIndex = i
+			break
+		}
+	}
+
+	if cashierIndex < 0 {
+		student.Status = agents.WaitingForPayment
+		*remainingTime = 0
+		return false
+	}
+
+	cashier := &world.Cashiers[cashierIndex]
+
+	// Ask the cashier agent to advance the service.
+	decision := engine.requestStaffDecision(
+		cashier,
+		agents.StaffObservation{
+			Elapsed: *remainingTime,
+			Open:    cashierIndex < world.Settings.Cashiers,
+		},
+	)
+
+	// Apply the decision to Environment.
+	cashier.ServiceTimeLeft = decision.RemainingTime
+	*remainingTime -= decision.BusyTime
 
 	// Payment is still in progress.
-	if world.Cashier.ServiceTimeLeft > 0 {
+	if decision.CompletedStudentID != id {
 		*remainingTime = 0
 		return false
 	}
 
 	// Payment completed.
-	world.Cashier.StudentID = 0
-	tickInfo.paymentCounterFreeAt = tickInfo.dt - *remainingTime
+	cashier.StudentID = 0
+
+	tickInfo.paymentCounterFreeAt[cashierIndex] =
+		tickInfo.dt - *remainingTime
 
 	recordService(
 		&world.Statistics.CashierCounter,
 		student.QueueWait,
-		world.Cashier.Staff.ServiceTime,
+		cashier.Staff.ServiceTime,
 		0,
 	)
 
@@ -466,8 +628,15 @@ func advanceStudentAfterPayment(world *environment.Environment, student *agents.
 		case agents.Walking:
 			switch student.Target {
 			case agents.TargetDining:
-				remainingTime = student.Walk(diningArea.Route, world.Settings.WalkingSpeed, remainingTime)
-				if student.NextWaypoint < len(diningArea.Route) {
+				diningRoute := diningArea.Route
+				if student.CashierIndex == 1 {
+					// Continue forward from the upper cashier, without returning
+					// to the lower checkout road.
+					diningRoute = append([]agents.Point(nil), world.Cashier2ExitRoute...)
+					diningRoute = append(diningRoute, diningArea.UpperCashierRoute...)
+				}
+				remainingTime = student.Walk(diningRoute, world.Settings.WalkingSpeed, remainingTime)
+				if student.NextWaypoint < len(diningRoute) {
 					return
 				}
 				student.Status = agents.Dining

@@ -112,7 +112,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	vector.FillRect(screen, layout.MainRegion.X, layout.MainRegion.Y, layout.MainRegion.Width, layout.MainRegion.Height, foodColor, false)
 
 	// Cashier counter
-	vector.FillRect(screen, layout.CashierRegion.X, layout.CashierRegion.Y, layout.CashierRegion.Width, layout.CashierRegion.Height, foodColor, false)
+	vector.FillRect(screen, layout.Cashier1Region.X, layout.Cashier1Region.Y, layout.Cashier1Region.Width, layout.Cashier1Region.Height, foodColor, false)
+
+	if snapshot.Settings.Cashiers >= 2 {
+		vector.FillRect(screen, layout.Cashier2Region.X, layout.Cashier2Region.Y, layout.Cashier2Region.Width, layout.Cashier2Region.Height, foodColor, false)
+	}
 
 	// Dining areas
 	for _, area := range layout.DiningAreas {
@@ -126,6 +130,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// Roads
 	for _, road := range layout.Roads {
 		vector.FillRect(screen, road.X, road.Y, road.Width, road.Height, roadColor, false)
+	}
+
+	if snapshot.Settings.Cashiers >= 2 {
+		points := append([]agents.Point(nil), layout.Checkout2Route...)
+
+		points = append(points, layout.Cashier2ExitRoute...)
+
+		for i := 1; i < len(points); i++ {
+			from := points[i-1]
+			to := points[i]
+
+			vector.StrokeLine(screen, float32(from.X), float32(from.Y), float32(to.X), float32(to.Y), 40, roadColor, true)
+		}
 	}
 
 	ebitenutil.DebugPrintAt(
