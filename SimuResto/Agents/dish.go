@@ -1,18 +1,30 @@
 package agents
 
-// Dish is food data, rather than an agent that makes decisions.
+type Course string
+
+const (
+	Starter Course = "starter"
+	Main    Course = "main"
+)
+
 type Dish struct {
-	ID                string
-	Name              string
-	Course            Course
-	Vegetarian        bool
-	Portions          int     // Initial number of available portions.
-	SatisfactionScore float32 // Dish rating between 0 and 100.
+	ID         string
+	Name       string
+	Course     Course
+	Vegetarian bool
+	Portions   int // Current display stock
+
+	RefillBatch int // Whole portions delivered in one restocking trip.
+	MaxPortions int
+
+	ColorScore   float64 // 0–1
+	TasteScore   float64 // 0–1
+	SatietyScore float64 // 0–1
+
+	StarterCounter int // 1 or 2 for starters; 0 for main courses
 }
 
-// Meal contains the dishes collected by a student.
 type Meal struct {
 	Starters []Dish
-	Main     *Dish // nil until a main dish has been collected.
-	Desserts []Dish
+	Main     *Dish
 }
