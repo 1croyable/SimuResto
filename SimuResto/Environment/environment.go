@@ -39,11 +39,11 @@ type Environment struct {
 
 	DiningAreas [3]DiningArea
 
-	Route         []agents.Point
-	Starter2Route []agents.Point
-	MainRoute     []agents.Point
-	CheckoutRoute []agents.Point
-	ExitRoute     []agents.Point
+	Starter1Route  []agents.Point
+	Starter2Route  []agents.Point
+	MainRoute      []agents.Point
+	Checkout1Route []agents.Point
+	ExitRoute      []agents.Point
 
 	Checkout2Route    []agents.Point
 	Cashier2ExitRoute []agents.Point
@@ -97,7 +97,7 @@ func New(settings Settings) *Environment {
 		WasteRegion: Region{805, 550, 270, 120},
 
 		// Entrance → Starter 1
-		Route: []agents.Point{
+		Starter1Route: []agents.Point{
 			{X: Width - 20, Y: 90},
 			{X: 65, Y: 90},
 			{X: 65, Y: 140}, // door
@@ -128,7 +128,7 @@ func New(settings Settings) *Environment {
 		MainRoute: []agents.Point{{X: 447.5, Y: lowerRoadY}},
 
 		// Main course → Cashier
-		CheckoutRoute: []agents.Point{{X: 670, Y: lowerRoadY}},
+		Checkout1Route: []agents.Point{{X: 670, Y: lowerRoadY}},
 
 		ExitRoute: []agents.Point{{X: wasteStop.X, Y: lowerRoadY}, {X: Width, Y: lowerRoadY}},
 

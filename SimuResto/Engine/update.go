@@ -40,19 +40,19 @@ func (engine *engine) advanceQueue(world *environment.Environment, dt time.Durat
 		return
 	}
 	fork := world.Checkout2Route[0]
-	route := append([]agents.Point(nil), world.Route...)
+	route := append([]agents.Point(nil), world.Starter1Route...)
 	route = append(route, world.Starter2Route...)
 	route = append(route, world.MainRoute...)
 	route = append(route, fork)
 
 	q := queueTick{
 		route:       route,
-		starter1End: len(world.Route),
+		starter1End: len(world.Starter1Route),
 		dt:          dt,
 	}
 
 	q.cookRestocking = cookRestocking
-	q.doorPosition = routeLength(world.Route[:3])
+	q.doorPosition = routeLength(world.Starter1Route[:3])
 
 	q.starter2End = q.starter1End + len(world.Starter2Route)
 	q.mainEnd = q.starter2End + len(world.MainRoute)
@@ -155,7 +155,7 @@ func (engine *engine) advanceAssignedCashier(
 		return false
 	}
 
-	branch := world.CheckoutRoute // Cashier 1: original lower route.
+	branch := world.Checkout1Route // Cashier 1: original lower route.
 	if i == 1 {
 		branch = world.Checkout2Route // Cashier 2: curved upper route.
 	}

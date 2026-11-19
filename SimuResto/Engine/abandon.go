@@ -8,7 +8,7 @@ import (
 )
 
 func buildAbandonRoute(world *environment.Environment, position agents.Point) []agents.Point {
-	path := append([]agents.Point(nil), world.Route...)
+	path := append([]agents.Point(nil), world.Starter1Route...)
 	path = append(path, world.Starter2Route...)
 	path = append(path, world.MainRoute...)
 

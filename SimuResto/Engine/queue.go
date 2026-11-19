@@ -38,8 +38,8 @@ func (e *engine) admitStudents(world *environment.Environment, arrivals []*agent
 		}
 
 		student.Position = agents.Point{
-			X: world.Route[0].X - student.PositionAlongRoute,
-			Y: world.Route[0].Y,
+			X: world.Starter1Route[0].X - student.PositionAlongRoute,
+			Y: world.Starter1Route[0].Y,
 		}
 
 		student.NextWaypoint = 0
@@ -52,11 +52,11 @@ func (e *engine) admitStudents(world *environment.Environment, arrivals []*agent
 
 // called when the door close but some students are still outside the door
 func (e *engine) removeOutsideStudents(world *environment.Environment) {
-	if len(world.Route) < 3 {
+	if len(world.Starter1Route) < 3 {
 		return
 	}
 
-	doorPosition := routeLength(world.Route[:3])
+	doorPosition := routeLength(world.Starter1Route[:3])
 
 	for _, id := range world.Queue.IDs() {
 		student := world.StudentsByID[id]
