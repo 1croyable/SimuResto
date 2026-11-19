@@ -53,7 +53,9 @@ type Environment struct {
 	Cook          agents.StaffState
 	Cashiers      [MaxCashiers]agents.StaffState
 
-	Menu []agents.Dish
+	Menu     []agents.Dish
+	Counters [3][]CounterStock // Starter 1, Starter 2, Main
+	Restock  RestockState
 
 	Queue *model.Queue
 
@@ -155,17 +157,59 @@ func New(settings Settings) *Environment {
 		},
 
 		Menu: []agents.Dish{
-			{ID: "salad", Name: "Green salad", Course: agents.Starter, Vegetarian: true,
-				Portions: settings.StudentCount, ColorScore: 0.9, TasteScore: 0.7, SatietyScore: 0.3, StarterCounter: 1},
+			{
+				ID: "salad", Name: "Green salad",
+				Course:     agents.Starter,
+				Vegetarian: true,
+				Portions:   0,
 
-			{ID: "soup", Name: "Vegetable soup", Course: agents.Starter, Vegetarian: true,
-				Portions: settings.StudentCount, ColorScore: 0.6, TasteScore: 0.9, SatietyScore: 0.7, StarterCounter: 2},
+				RefillBatch:    10,
+				ColorScore:     0.9,
+				TasteScore:     0.7,
+				SatietyScore:   0.3,
+				StarterCounter: 1,
+				MaxPortions:    40,
+			},
+			{
+				ID:         "soup",
+				Name:       "Vegetable soup",
+				Course:     agents.Starter,
+				Vegetarian: true,
+				Portions:   0,
 
-			{ID: "vegetable", Name: "Vegetable dish", Course: agents.Main, Vegetarian: true,
-				Portions: (settings.StudentCount + 1) / 2, ColorScore: 0.7, TasteScore: 0.8, SatietyScore: 0.7},
+				RefillBatch:    10,
+				ColorScore:     0.6,
+				TasteScore:     0.9,
+				SatietyScore:   0.7,
+				StarterCounter: 2,
+				MaxPortions:    40,
+			},
+			{
+				ID:         "vegetable",
+				Name:       "Vegetable dish",
+				Course:     agents.Main,
+				Vegetarian: true,
+				Portions:   0,
 
-			{ID: "pasta", Name: "Pasta", Course: agents.Main, Vegetarian: true,
-				Portions: settings.StudentCount / 2, ColorScore: 0.8, TasteScore: 0.9, SatietyScore: 0.9},
+				RefillBatch:  10,
+				ColorScore:   0.7,
+				TasteScore:   0.8,
+				SatietyScore: 0.7,
+				MaxPortions:  30,
+			},
+			{
+				ID:         "pasta",
+				Name:       "Pasta",
+				Course:     agents.Main,
+				Vegetarian: true,
+				Portions:   0,
+
+				RefillBatch:  10,
+				ColorScore:   0.8,
+				TasteScore:   0.9,
+				SatietyScore: 0.9,
+				MaxPortions:  30,
+			},
 		},
 
 		SimulationSpeed: 1.0,
@@ -185,6 +229,8 @@ func New(settings Settings) *Environment {
 
 		area.CleanupRoute = []agents.Point{aisleTurn, aisleEntrance, {X: wasteStop.X, Y: lowerRoadY}, wasteStop}
 	}
+
+	world.InitCounters()
 
 	world.Queue, _ = model.NewQueue(settings.StudentCount)
 

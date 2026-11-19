@@ -69,8 +69,9 @@ func (g *Game) Step(dt time.Duration) {
 		advanceStudentOutsideQueue(world, student, dt)
 	}
 
-	// students still in line move, collect food, pay, or leave the queue
-	g.engine.advanceQueue(world, dt)
+	cookRestocking := engine.advanceRestocking(world, dt)
+
+	g.engine.advanceQueue(world, dt, cookRestocking)
 
 	g.snapshot = buildSnapshot(g.World, g.done, g.snapshot)
 }

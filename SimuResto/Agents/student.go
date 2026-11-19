@@ -122,7 +122,7 @@ func (studentStatus *StudentState) PlanStarters(menu []Dish, temperature float64
 		var scores []float64
 
 		for i, dish := range menu {
-			if dish.Course != Starter || portions[i] <= 0 {
+			if dish.Course != Starter {
 				continue
 			}
 

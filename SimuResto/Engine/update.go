@@ -23,12 +23,13 @@ type queueTick struct {
 	doorPosition         float64
 
 	foodCounterFreeAt    time.Duration
+	cookRestocking       bool
 	paymentCounterFreeAt [environment.MaxCashiers]time.Duration
 
 	dt time.Duration
 }
 
-func (engine *engine) advanceQueue(world *environment.Environment, dt time.Duration) {
+func (engine *engine) advanceQueue(world *environment.Environment, dt time.Duration, cookRestocking bool) {
 	if world.Queue == nil || dt <= 0 {
 		return
 	}
@@ -50,6 +51,7 @@ func (engine *engine) advanceQueue(world *environment.Environment, dt time.Durat
 		dt:          dt,
 	}
 
+	q.cookRestocking = cookRestocking
 	q.doorPosition = routeLength(world.Route[:3])
 
 	q.starter2End = q.starter1End + len(world.Starter2Route)
@@ -285,7 +287,7 @@ func (engine *engine) advanceTowardCounter(
 
 	atCounter := student.PositionAlongRoute >= counterPosition-0.0001
 
-	// Plan and reserve starters shortly before reaching counter 1.
+	// Choose two starters before counter 1; do not consume stock until pickup.
 	if student.Target == agents.TargetStarter1 &&
 		student.PlannedStarterIDs == nil &&
 		student.PositionAlongRoute >= tickInfo.starter1Position-20 {
@@ -301,16 +303,6 @@ func (engine *engine) advanceTowardCounter(
 
 		student.PlannedStarterIDs = decision.StarterIDs
 
-		for _, dishID := range student.PlannedStarterIDs {
-			for i := range world.Menu {
-				dish := &world.Menu[i]
-
-				if dish.Course == agents.Starter && dish.ID == dishID {
-					dish.Portions--
-					break
-				}
-			}
-		}
 	}
 
 	starterCount := 0
@@ -337,25 +329,27 @@ func (engine *engine) advanceTowardCounter(
 
 	switch {
 	case pickingStarter:
-		canStartService = atCounter
+		canStartService = atCounter && plannedStartersInStock(world, student)
 
 	case beforeFood:
-		if atCounter && counter.StudentID == 0 {
+		if atCounter && student.OrderedDishID == "" {
 			for _, dish := range world.Menu {
-				if dish.Course != agents.Main || dish.Portions <= 0 {
+				if dish.Course != agents.Main || (student.Student.Vegetarian && !dish.Vegetarian) {
 					continue
 				}
-
-				// Vegetarian students can only choose vege
-				if student.Student.Vegetarian && !dish.Vegetarian {
-					continue
-				}
-
 				dishes = append(dishes, dish)
 			}
+			if len(dishes) > 0 {
+				choice := engine.requestStudentDecision(student, agents.StudentObservation{
+					Dishes:      dishes,
+					Temperature: world.Settings.ChoiceTemperature,
+				})
+				student.OrderedDishID = choice.DishID
+			}
 		}
-
-		canStartService = len(dishes) > 0
+		canStartService = atCounter && !tickInfo.cookRestocking &&
+			counter.StudentID == 0 && student.OrderedDishID != "" &&
+			world.HasStock(student.OrderedDishID, 1)
 
 	default:
 		// Select an available cashier for payment.
@@ -401,7 +395,7 @@ func (engine *engine) advanceTowardCounter(
 		switch {
 		case student.Target == agents.TargetCashier:
 			student.Status = agents.WaitingForPayment
-		case beforeFood:
+		case beforeFood, pickingStarter:
 			student.Status = agents.WaitingForFood
 		}
 
@@ -423,27 +417,15 @@ func (engine *engine) advanceTowardCounter(
 		}
 
 		student.Status = agents.Serving
-		student.RemainingStarterPickup =
-			world.Settings.ServiceTime * time.Duration(starterCount)
+		student.RemainingStarterPickup = world.Settings.ServiceTime
 
 	case beforeFood:
-		// Ask the same goroutine to select a main course.
-		choice := engine.requestStudentDecision(
-			student,
-			agents.StudentObservation{
-				Dishes:      dishes,
-				Temperature: world.Settings.ChoiceTemperature,
-			},
-		)
-
-		student.OrderedDishID = choice.DishID
+		// Main course has already been chosen; stock was checked before service.
 		student.Position = world.MainRoute[len(world.MainRoute)-1]
 		student.NextWaypoint = tickInfo.mainEnd
 		student.Status = agents.Serving
 
 	default:
-		// At the fork, reserve the available cashier. The student must
-		// walk down its branch before the StaffAgent starts payment.
 		student.CashierIndex = cashierIndex
 		student.NextWaypoint = 0 // Waypoint index is now local to the branch.
 		student.Status = agents.Walking
@@ -473,22 +455,54 @@ func advanceFoodService(world *environment.Environment, student *agents.StudentS
 			return
 		}
 
-		before := len(student.Meal.Starters)
-		collectDish(world, student)
-		collected := len(student.Meal.Starters) - before
-
 		counterIndex := 0
+		counterNumber := 1
 		if student.Target == agents.TargetStarter2 {
 			counterIndex = 1
+			counterNumber = 2
 		}
 
-		recordService(
-			&world.Statistics.StarterCounters[counterIndex],
-			student.QueueWait,
-			world.Settings.ServiceTime*time.Duration(collected),
-			collected,
-		)
+		// Check whether this student has already collected another dish at the same counter.
+		alreadyServed := false
+		for _, dish := range student.Meal.Starters {
+			if dish.StarterCounter == counterNumber {
+				alreadyServed = true
+				break
+			}
+		}
 
+		before := len(student.Meal.Starters)
+		collectDish(world, student)
+
+		if len(student.Meal.Starters) == before {
+			student.Status = agents.WaitingForFood
+			return
+		}
+
+		// Record exactly one collected dish and one pickup duration.
+		stats := &world.Statistics.StarterCounters[counterIndex]
+
+		if !alreadyServed {
+			stats.StudentsServed++
+		}
+
+		stats.DishesCollected++
+		stats.TotalServiceTime += world.Settings.ServiceTime
+		stats.TotalWaitTime += student.QueueWait
+
+		if student.QueueWait > stats.MaxWaitTime {
+			stats.MaxWaitTime = student.QueueWait
+		}
+
+		student.QueueWait = 0
+
+		// Still another dish to collect at this counter?
+		if countPlannedStarters(world, student) > 0 {
+			student.Status = agents.WaitingForFood
+			return
+		}
+
+		// All dishes at this counter have been collected.
 		if student.Target == agents.TargetStarter1 {
 			student.Target = agents.TargetStarter2
 		} else {
@@ -496,7 +510,6 @@ func advanceFoodService(world *environment.Environment, student *agents.StudentS
 		}
 
 		student.Status = agents.Walking
-		student.QueueWait = 0
 		return
 	}
 
@@ -596,7 +609,26 @@ func (engine *engine) advancePayment(
 	return true
 }
 
-// Count the reserved starters belonging to the current counter of a certain student
+func plannedStartersInStock(world *environment.Environment, student *agents.StudentState) bool {
+	counterNumber := 1
+	if student.Target == agents.TargetStarter2 {
+		counterNumber = 2
+	}
+
+	for _, dishID := range student.PlannedStarterIDs {
+		for _, dish := range world.Menu {
+			if dish.ID == dishID &&
+				dish.Course == agents.Starter &&
+				dish.StarterCounter == counterNumber {
+				return world.HasStock(dishID, 1)
+			}
+		}
+	}
+
+	return false
+}
+
+// Count the uncollected starters requested from the current counter.
 func countPlannedStarters(world *environment.Environment, student *agents.StudentState) int {
 	counterNumber := 1
 	if student.Target == agents.TargetStarter2 {
@@ -617,17 +649,9 @@ func countPlannedStarters(world *environment.Environment, student *agents.Studen
 	return count
 }
 
-// Return uncollected reserved starters to inventory.
-func restoreReservedStarters(world *environment.Environment, student *agents.StudentState) {
-	for _, dishID := range student.PlannedStarterIDs {
-		for i := range world.Menu {
-			if world.Menu[i].ID == dishID {
-				world.Menu[i].Portions++
-				break
-			}
-		}
-	}
-
+// Forget pending starter choices; selecting a dish no longer reserves stock.
+func restoreReservedStarters(_ *environment.Environment, student *agents.StudentState) {
+	// Selection no longer reserves stock. Simply forget uncollected choices.
 	student.PlannedStarterIDs = nil
 }
 
@@ -727,31 +751,30 @@ func collectDish(world *environment.Environment, student *agents.StudentState) {
 		for i := range world.Menu {
 			dish := &world.Menu[i]
 
-			if dish.Course != agents.Main || dish.ID != student.OrderedDishID || dish.Portions <= 0 {
+			if dish.Course != agents.Main || dish.ID != student.OrderedDishID {
 				continue
 			}
 
+			if !world.TakeDish(dish.ID) {
+				return
+			}
 			meal := *dish
+			meal.Portions = 1
 			student.Meal.Main = &meal
-			dish.Portions--
 			return
 		}
 		return
 	}
 
-	// Collect planned starters from the current counter.
+	// Collect one starter from the current counter.
 	counterNumber := 1
 	if student.Target == agents.TargetStarter2 {
 		counterNumber = 2
 	}
 
-	remaining := make([]string, 0, len(student.PlannedStarterIDs))
-
-	for _, dishID := range student.PlannedStarterIDs {
-		collected := false
-
-		for i := range world.Menu {
-			dish := &world.Menu[i]
+	for i, dishID := range student.PlannedStarterIDs {
+		for j := range world.Menu {
+			dish := &world.Menu[j]
 
 			if dish.Course != agents.Starter ||
 				dish.ID != dishID ||
@@ -759,19 +782,27 @@ func collectDish(world *environment.Environment, student *agents.StudentState) {
 				continue
 			}
 
-			meal := *dish
-			student.Meal.Starters = append(student.Meal.Starters, meal)
-			collected = true
-			break
-		}
+			if !world.TakeDish(dishID) {
+				return
+			}
 
-		if !collected {
-			remaining = append(remaining, dishID)
+			meal := *dish
+			meal.Portions = 1
+
+			student.Meal.Starters = append(
+				student.Meal.Starters,
+				meal,
+			)
+
+			// Remove only the dish that was just collected.
+			student.PlannedStarterIDs = append(
+				student.PlannedStarterIDs[:i],
+				student.PlannedStarterIDs[i+1:]...,
+			)
+
+			return
 		}
 	}
-
-	// if the wanted dish is at conter 2 but now the student is at conter 1, remaining reserve it
-	student.PlannedStarterIDs = remaining
 }
 
 func recordService(stats *environment.CounterStatistics, wait, service time.Duration, dishes int) {

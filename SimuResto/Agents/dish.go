@@ -12,7 +12,10 @@ type Dish struct {
 	Name       string
 	Course     Course
 	Vegetarian bool
-	Portions   int // Number of available portions.
+	Portions   int // Current display stock
+
+	RefillBatch int // Whole portions delivered in one restocking trip.
+	MaxPortions int
 
 	ColorScore   float64 // 0–1
 	TasteScore   float64 // 0–1

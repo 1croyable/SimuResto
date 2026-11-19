@@ -198,16 +198,15 @@ func DrawStats(screen *ebiten.Image, snapshot engine.Snapshot) {
 			metrics.StaffUtilization[agents.Cashier],
 		),
 		"",
-		"FOOD STOCK (AVAILABLE / RESERVED / COLLECTED)",
+		"FOOD STOCK (AVAILABLE / COLLECTED)",
 	}
 
 	for _, stock := range snapshot.Stock {
 		rightLines = append(rightLines,
 			fmt.Sprintf(
-				"%-15.15s : %d / %d / %d",
+				"%-15.15s : %d / %d",
 				stock.Dish.Name,
 				stock.Dish.Portions,
-				stock.Reserved,
 				stock.Collected,
 			),
 		)

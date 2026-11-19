@@ -36,7 +36,6 @@ type WorkerSnapshot struct {
 
 type StockSnapshot struct {
 	Dish      agents.Dish // Dish.Portions is the currently available stock.
-	Reserved  int         // Starters chosen but not yet collected.
 	Collected int         // Portions in student meals.
 }
 
@@ -110,10 +109,12 @@ type Report struct {
 
 type Snapshot struct {
 	Report
-	Layout LayoutSnapshot
-	Queue  QueueSnapshot
-	Zones  []ZoneSnapshot
-	Done   bool
+	Layout   LayoutSnapshot
+	Queue    QueueSnapshot
+	Zones    []ZoneSnapshot
+	Done     bool
+	Counters [3][]environment.CounterStock
+	Restock  environment.RestockState
 }
 
 func averageCounterWait(c environment.CounterStatistics) time.Duration {
@@ -179,7 +180,6 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 		MaxWaitByCounter:     make(map[string]time.Duration),
 		StaffUtilization:     make(map[agents.Role]float64),
 	}
-	reserved := make(map[string]int)
 	collected := make(map[string]int)
 	for _, student := range world.StudentStates {
 		item := StudentSnapshot{
@@ -204,9 +204,6 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 		for _, dish := range student.Meal.Starters {
 			collected[dish.ID]++
 		}
-		for _, id := range student.PlannedStarterIDs {
-			reserved[id]++
-		}
 		s.Students = append(s.Students, item)
 		switch student.Status {
 		case agents.Scheduled:
@@ -223,7 +220,7 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 		}
 	}
 	for _, dish := range world.Menu {
-		s.Stock = append(s.Stock, StockSnapshot{Dish: dish, Reserved: reserved[dish.ID], Collected: collected[dish.ID]})
+		s.Stock = append(s.Stock, StockSnapshot{Dish: dish, Collected: collected[dish.ID]})
 	}
 	zoneIndex := make(map[agents.StudentTarget]int)
 	for _, id := range s.Queue.StudentIDs {
@@ -271,7 +268,16 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 	if world.TimePassed > 0 {
 		s.Metrics.MealsPerMinute = float64(s.Metrics.MealsServed) / world.TimePassed.Minutes()
 	}
-	s.Metrics.StaffUtilization[agents.Server] = staffUtilization(world.Statistics.MainCounter, world.TimePassed)
+
+	cookBusyTime := world.Statistics.MainCounter.TotalServiceTime + world.Statistics.CookRestockTime
+
+	s.Metrics.StaffUtilization[agents.Server] = staffUtilization(
+		environment.CounterStatistics{
+			TotalServiceTime: cookBusyTime,
+		},
+		world.TimePassed,
+	)
+
 	s.Metrics.StaffUtilization[agents.Cashier] = staffUtilization(world.Statistics.CashierCounter, world.TimePassed)
 	// Cook
 	s.Staff = []WorkerSnapshot{
@@ -281,7 +287,7 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 			StudentID:       world.Cook.StudentID,
 			ServiceTimeLeft: world.Cook.ServiceTimeLeft,
 			Served:          world.Statistics.MainCounter.StudentsServed,
-			BusyTime:        world.Statistics.MainCounter.TotalServiceTime,
+			BusyTime:        cookBusyTime,
 			Utilization:     s.Metrics.StaffUtilization[agents.Server],
 		},
 	}
@@ -302,6 +308,17 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 			ServiceTimeLeft: cashier.ServiceTimeLeft,
 		})
 	}
+
+	s.Counters = world.Counters
+	s.Restock = world.Restock
+
+	for i := range s.Counters {
+		s.Counters[i] = append(
+			[]environment.CounterStock(nil),
+			world.Counters[i]...,
+		)
+	}
+
 	return s
 }
 
@@ -360,6 +377,16 @@ func cloneSnapshot(source Snapshot) Snapshot {
 	for k, v := range source.Metrics.StaffUtilization {
 		s.Metrics.StaffUtilization[k] = v
 	}
+
+	s.Counters = source.Counters
+
+	for i := range s.Counters {
+		s.Counters[i] = append(
+			[]environment.CounterStock(nil),
+			source.Counters[i]...,
+		)
+	}
+
 	return s
 }
 

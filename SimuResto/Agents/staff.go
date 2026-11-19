@@ -8,11 +8,26 @@ type StaffData struct {
 	ServiceTime time.Duration // Time needed to serve one student.
 }
 
+type RestockOption struct {
+	CounterIndex int
+	DishID       string
+}
+
+type RestockObservation struct {
+	Active        bool
+	CounterIndex  int
+	DishID        string
+	RemainingTime time.Duration
+	Duration      time.Duration
+	Options       []RestockOption
+}
+
 type StaffObservation struct {
 	NextStudentID int // First waiting student; 0 if none.
 	QueueLength   int
 	Elapsed       time.Duration
 	Open          bool
+	Restock       *RestockObservation // when Restock != nil, we need to refill
 }
 
 type StaffDecision struct {
@@ -20,6 +35,10 @@ type StaffDecision struct {
 	CompletedStudentID int
 	BusyTime           time.Duration
 	RemainingTime      time.Duration
+
+	RestockDishID    string
+	RestockCounter   int
+	RestockCompleted bool
 }
 
 func (staff *StaffState) AdvanceService(dt time.Duration) time.Duration {
@@ -29,6 +48,9 @@ func (staff *StaffState) AdvanceService(dt time.Duration) time.Duration {
 }
 
 func (staff *StaffState) Decide(obs StaffObservation) StaffDecision {
+	if obs.Restock != nil {
+		return staff.decideRestock(*obs.Restock, obs.Elapsed)
+	}
 	decision := StaffDecision{
 		RemainingTime: staff.ServiceTimeLeft,
 	}

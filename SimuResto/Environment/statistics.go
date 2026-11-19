@@ -17,4 +17,7 @@ type Statistics struct {
 	CashierCounter  CounterStatistics
 
 	MaxQueueLength int
+
+	CookRestockTime time.Duration
+	RestockBatches  int
 }
