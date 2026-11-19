@@ -1,7 +1,6 @@
 package environment
 
 import (
-	"math/rand"
 	"time"
 
 	agents "simuresto/SimuResto/Agents"
@@ -27,8 +26,9 @@ type DiningArea struct {
 
 // the engine updates it and the client draws it.
 type Environment struct {
-	Settings   Settings
-	TimePassed time.Duration // Total simulated time since starting
+	Settings       Settings
+	TimePassed     time.Duration // Total simulated time since starting
+	OperatingPhase OperatingPhase
 
 	Roads          []Region
 	StarterRegions [2]Region
@@ -58,7 +58,17 @@ type Environment struct {
 	Queue *model.Queue
 
 	Statistics Statistics
+
+	SimulationSpeed float64 // Simulated seconds per real second.
 }
+
+type OperatingPhase string
+
+const (
+	OperatingOpen    OperatingPhase = "OPEN"
+	OperatingClosing OperatingPhase = "CLOSING"
+	OperatingBreak   OperatingPhase = "BREAK"
+)
 
 func New(settings Settings) *Environment {
 	const lowerRoadY = 520
@@ -66,8 +76,10 @@ func New(settings Settings) *Environment {
 	wasteStop := agents.Point{X: 930, Y: 600}
 
 	world := &Environment{
-		Settings: settings,
-		Roads:    []Region{{35, 60, Width - 35, 60}, {35, 60, 60, 490}, {35, 490, Width - 35, 60}},
+		Settings:       settings,
+		OperatingPhase: OperatingBreak,
+
+		Roads: []Region{{35, 60, Width - 35, 60}, {35, 60, 60, 490}, {35, 490, Width - 35, 60}},
 		StarterRegions: [2]Region{
 			{130, 570, 90, 45},
 			{230, 570, 90, 45},
@@ -86,6 +98,7 @@ func New(settings Settings) *Environment {
 		Route: []agents.Point{
 			{X: Width - 20, Y: 90},
 			{X: 65, Y: 90},
+			{X: 65, Y: 140}, // door
 			{X: 65, Y: lowerRoadY},
 			{X: 175, Y: lowerRoadY},
 		},
@@ -154,6 +167,8 @@ func New(settings Settings) *Environment {
 			{ID: "pasta", Name: "Pasta", Course: agents.Main, Vegetarian: true,
 				Portions: settings.StudentCount / 2, ColorScore: 0.8, TasteScore: 0.9, SatietyScore: 0.9},
 		},
+
+		SimulationSpeed: 1.0,
 	}
 
 	aisleEntrance := agents.Point{X: diningAisleX, Y: lowerRoadY}
@@ -172,20 +187,10 @@ func New(settings Settings) *Environment {
 	}
 
 	world.Queue, _ = model.NewQueue(settings.StudentCount)
-	world.StudentStates = make([]agents.StudentState, settings.StudentCount)
+
+	world.StudentStates = make([]agents.StudentState, 0, settings.StudentCount)
+
 	world.StudentsByID = make(map[int]*agents.StudentState, settings.StudentCount)
 
-	rng := rand.New(rand.NewSource(settings.Seed))
-	for i := range world.StudentStates {
-		world.StudentStates[i] = agents.NewStudentState(agents.StudentData{
-			ID:            i + 1,
-			ArrivalTime:   time.Duration(i) * settings.ArrivalInterval,
-			Patience:      settings.BasePatience,
-			ColorWeight:   rng.Float64(),
-			TasteWeight:   rng.Float64(),
-			SatietyWeight: rng.Float64(),
-		}, settings.Seed)
-		world.StudentsByID[world.StudentStates[i].Student.ID] = &world.StudentStates[i]
-	}
 	return world
 }

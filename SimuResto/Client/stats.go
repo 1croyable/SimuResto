@@ -81,11 +81,24 @@ func DrawStats(screen *ebiten.Image, snapshot engine.Snapshot) {
 		seconds%60,
 	)
 
+	// clock (11:30 at simulation start).
+	clock := snapshot.Settings.StartTime + snapshot.Duration
+
+	clockSeconds := int(clock / time.Second)
+	clockLabel := fmt.Sprintf(
+		"%02d:%02d:%02d",
+		(clockSeconds/3600)%24,
+		(clockSeconds/60)%60,
+		clockSeconds%60,
+	)
+
 	// Left panel: global simulation statistics.
 	leftLines := []string{
 		"SIMURESTO - SIMULATION",
 		"",
-		fmt.Sprintf("Simulation time : %s", timeLabel),
+		fmt.Sprintf("Restaurant time : %s", clockLabel),
+		fmt.Sprintf("Operating phase : %s", snapshot.OperatingPhase),
+		fmt.Sprintf("Elapsed time    : %s", timeLabel),
 		fmt.Sprintf("Total students  : %d", metrics.TotalStudents),
 		fmt.Sprintf("Scheduled       : %d", metrics.Scheduled),
 		fmt.Sprintf("Admitted        : %d", metrics.Admitted),

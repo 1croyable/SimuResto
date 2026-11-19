@@ -2,8 +2,6 @@ package environment
 
 import (
 	"time"
-
-	agents "simuresto/SimuResto/Agents"
 )
 
 // Default configuration values and simulation constants.
@@ -15,10 +13,9 @@ const (
 	ArrivalSigma         = 20 * time.Minute
 	OpeningStudentRatio  = 0.02
 	UniformArrivalRatio  = 0.20
-	MinArrivalInterval   = time.Second
 	DefaultTick          = 250 * time.Millisecond
 	ServiceDuration      = ClosingTime - OpeningTime
-	DefaultPlaybackSpeed = 4.0
+	DefaultPlaybackSpeed = 10.0
 	DefaultCashiers      = 2
 	MaxCashiers          = 2
 
@@ -42,13 +39,8 @@ const (
 	MinPaymentTime     = 8 * time.Second
 	MaxPaymentTime     = 14 * time.Second
 
-	// CROUS meal composition: one main course and at most
-	// two additional items combining starters and desserts.
-	MaxSideItems = 2
-
 	MainWeight                float32 = 2
 	StarterWeight             float32 = 1
-	DessertWeight             float32 = 1
 	IndoorLossPerSecond       float32 = 0.10
 	OutdoorLossPerSecond      float32 = 0.35
 	MissingSidePenalty        float32 = 5
@@ -56,16 +48,16 @@ const (
 	MaxMealSatisfactionChange float32 = 50
 
 	StarterPortions = 300
-	DessertPortions = 350
 )
 
 // Settings contains the configurable parameters for a simulation run.
 type Settings struct {
+	StartTime time.Duration // Simulation start time.
+
 	// Students
-	StudentCount    int
-	ArrivalInterval time.Duration
-	Seed            int64
-	BasePatience    time.Duration
+	StudentCount int
+	Seed         int64
+	BasePatience time.Duration
 
 	// Movement and queues
 	QueueSpacing float64
@@ -83,14 +75,28 @@ type Settings struct {
 	DiningTime  time.Duration
 
 	ChoiceTemperature float64 // food selection
+
+	Lunch       ArrivalPeriod
+	Dinner      ArrivalPeriod
+	DinnerShare float64 // Fraction of StudentCount assigned to dinner.
+}
+
+type ArrivalPeriod struct {
+	Open, Close, Peak     time.Duration
+	EarlyLead             time.Duration
+	SigmaLeft, SigmaRight time.Duration
+	EarlyRatio            float64
+	UniformRatio          float64
+	StopBeforeClose       time.Duration
 }
 
 func DefaultSettings() Settings {
 	return Settings{
-		StudentCount:    100,
-		ArrivalInterval: 0,
-		Seed:            42,
-		BasePatience:    10 * time.Minute,
+		StartTime: 11 * time.Hour,
+
+		StudentCount: 100,
+		Seed:         42,
+		BasePatience: 10 * time.Minute,
 
 		QueueSpacing: 16,
 		WalkingSpeed: 180,
@@ -105,18 +111,31 @@ func DefaultSettings() Settings {
 		DiningTime:  5 * time.Second,
 
 		ChoiceTemperature: 0.3,
-	}
-}
 
-// DefaultStudentGenerator uses a fixed arrival distribution
-// and schedules student arrivals according to the simulation tick.
-func DefaultStudentGenerator(tick time.Duration) agents.StudentGenerator {
-	return agents.StudentGenerator{
-		Tick:            tick,
-		ArrivalDuration: ServiceDuration,
-		ArrivalPeak:     ArrivalPeakTime - OpeningTime,
-		ArrivalSigma:    ArrivalSigma,
-		OpeningRatio:    OpeningStudentRatio,
-		UniformRatio:    UniformArrivalRatio,
+		Lunch: ArrivalPeriod{
+			Open:            11*time.Hour + 30*time.Minute, // 11:30
+			Close:           13*time.Hour + 45*time.Minute, // 13:45
+			Peak:            12*time.Hour + 10*time.Minute, // 12:10
+			EarlyLead:       15 * time.Minute,
+			SigmaLeft:       20 * time.Minute,
+			SigmaRight:      35 * time.Minute,
+			EarlyRatio:      0.02,
+			UniformRatio:    0.20,
+			StopBeforeClose: 10 * time.Minute,
+		},
+
+		Dinner: ArrivalPeriod{
+			Open:            18*time.Hour + 15*time.Minute, // 18:15
+			Close:           20*time.Hour + 30*time.Minute, // 20:30
+			Peak:            18*time.Hour + 30*time.Minute, // 18:30
+			EarlyLead:       10 * time.Minute,
+			SigmaLeft:       20 * time.Minute,
+			SigmaRight:      30 * time.Minute,
+			EarlyRatio:      0.02,
+			UniformRatio:    0.20,
+			StopBeforeClose: 10 * time.Minute,
+		},
+
+		DinnerShare: 0.35,
 	}
 }

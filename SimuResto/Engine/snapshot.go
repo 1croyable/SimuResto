@@ -21,6 +21,7 @@ type StudentSnapshot struct {
 	RemainingDining        time.Duration
 	CounterReleasedAt      time.Duration
 	Meal                   agents.Meal
+	IsLeaving              bool
 }
 
 type WorkerSnapshot struct {
@@ -96,14 +97,15 @@ type Metrics struct {
 }
 
 type Report struct {
-	Duration      time.Duration
-	Settings      environment.Settings
-	Students      []StudentSnapshot
-	Staff         []WorkerSnapshot
-	Stock         []StockSnapshot
-	Statistics    environment.Statistics
-	Metrics       Metrics
-	PeakOccupancy map[agents.StudentTarget]int // Maximum observed at Step boundaries.
+	Duration       time.Duration
+	Settings       environment.Settings
+	Students       []StudentSnapshot
+	Staff          []WorkerSnapshot
+	Stock          []StockSnapshot
+	Statistics     environment.Statistics
+	Metrics        Metrics
+	PeakOccupancy  map[agents.StudentTarget]int // Maximum observed at Step boundaries.
+	OperatingPhase environment.OperatingPhase
 }
 
 type Snapshot struct {
@@ -131,12 +133,13 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 	s := Snapshot{
 		Done: done,
 		Report: Report{
-			Duration:      world.TimePassed,
-			Settings:      world.Settings,
-			Statistics:    world.Statistics,
-			Students:      make([]StudentSnapshot, 0, len(world.StudentStates)),
-			Stock:         make([]StockSnapshot, 0, len(world.Menu)),
-			PeakOccupancy: make(map[agents.StudentTarget]int),
+			Duration:       world.TimePassed,
+			Settings:       world.Settings,
+			Statistics:     world.Statistics,
+			Students:       make([]StudentSnapshot, 0, len(world.StudentStates)),
+			Stock:          make([]StockSnapshot, 0, len(world.Menu)),
+			PeakOccupancy:  make(map[agents.StudentTarget]int),
+			OperatingPhase: world.OperatingPhase,
 		},
 		Layout: LayoutSnapshot{
 			Roads:             append([]environment.Region(nil), world.Roads...),
@@ -191,6 +194,7 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 			RemainingDining:        student.RemainingDining,
 			CounterReleasedAt:      student.CounterReleasedAt,
 			Meal:                   agents.Meal{Starters: append([]agents.Dish(nil), student.Meal.Starters...)},
+			IsLeaving:              len(student.AbandonRoute) > 0,
 		}
 		if student.Meal.Main != nil {
 			main := *student.Meal.Main

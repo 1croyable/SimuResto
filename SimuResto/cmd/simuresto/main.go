@@ -74,7 +74,11 @@ func (g *Game) Update() error {
 		return nil
 	}
 
-	g.tickRemainder += int64(time.Second)
+	// Advance simulated time
+	speed := g.Simulation.World.SimulationSpeed
+
+	g.tickRemainder += int64(float64(time.Second) * speed)
+
 	rate := int64(g.Settings.TicksPerSecond)
 	dt := time.Duration(g.tickRemainder / rate)
 	g.tickRemainder %= rate
@@ -164,12 +168,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Students
 	for _, student := range snapshot.Students {
-		switch student.Status {
-		case agents.Finished, agents.Abandoned, agents.Scheduled:
-			continue
-		}
-
 		fill := color.RGBA{R: 65, G: 140, B: 220, A: 255}
+
+		switch student.Status {
+		case agents.Finished, agents.Scheduled:
+			continue
+
+		case agents.Abandoned:
+			fill = color.RGBA{R: 140, G: 140, B: 140, A: 255}
+
+			if !student.IsLeaving {
+				continue
+			}
+		}
 
 		if student.Status == agents.Serving ||
 			student.Status == agents.Paying {
@@ -206,6 +217,7 @@ func (g *Game) startSimulation() {
 	g.closeSimulation()
 
 	world := environment.New(g.Settings)
+
 	g.Simulation = engine.NewGame(world)
 
 	g.tickRemainder = 0

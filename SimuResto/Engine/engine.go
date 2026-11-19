@@ -1,6 +1,12 @@
 package engine
 
-import "sync"
+import (
+	agents "simuresto/SimuResto/Agents"
+	randomness "simuresto/SimuResto/Agents/Randomness"
+	environment "simuresto/SimuResto/Environment"
+	"sync"
+	"time"
+)
 
 // The engine coordinates agent execution.
 // All simulation states are maintained by Environment.
@@ -10,6 +16,9 @@ type engine struct {
 
 	agentWG   sync.WaitGroup
 	closeOnce sync.Once
+
+	arrivals  *randomness.ArrivalProcess
+	generator *agents.StudentGenerator
 }
 
 func newEngine() *engine {
@@ -31,4 +40,30 @@ func (e *engine) closeAgents() {
 
 		e.agentWG.Wait()
 	})
+}
+
+func (e *engine) CurrentTime(world *environment.Environment) time.Duration {
+	return world.Settings.StartTime + world.TimePassed
+}
+
+func (e *engine) UpdateOperatingPhase(world *environment.Environment) {
+	now := e.CurrentTime(world)
+	s := world.Settings
+
+	switch {
+	case now < s.Lunch.Open:
+		world.OperatingPhase = environment.OperatingBreak
+
+	case now < s.Lunch.Close:
+		world.OperatingPhase = environment.OperatingOpen
+
+	case now < s.Dinner.Open:
+		world.OperatingPhase = environment.OperatingBreak
+
+	case now < s.Dinner.Close:
+		world.OperatingPhase = environment.OperatingOpen
+
+	default:
+		world.OperatingPhase = environment.OperatingClosing
+	}
 }

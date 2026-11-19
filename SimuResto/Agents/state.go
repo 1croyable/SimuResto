@@ -34,6 +34,8 @@ type StudentState struct {
 	PlannedStarterIDs []string
 
 	CashierIndex int // 0 lower cahier, 1 upper
+
+	AbandonRoute []Point
 }
 
 type StaffState struct {

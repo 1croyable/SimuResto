@@ -8,11 +8,9 @@ import (
 )
 
 type StudentData struct {
-	ID             int
-	ArrivalTime    time.Duration
-	Patience       time.Duration
-	StartersWanted int
-	DessertsWanted int
+	ID          int
+	ArrivalTime time.Duration
+	Patience    time.Duration
 
 	// preference of the dishes
 	ColorWeight   float64

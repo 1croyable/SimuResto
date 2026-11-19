@@ -20,6 +20,7 @@ type queueTick struct {
 	starter2Position     float64
 	mainPosition         float64
 	checkoutForkPosition float64
+	doorPosition         float64
 
 	foodCounterFreeAt    time.Duration
 	paymentCounterFreeAt [environment.MaxCashiers]time.Duration
@@ -48,6 +49,8 @@ func (engine *engine) advanceQueue(world *environment.Environment, dt time.Durat
 		starter1End: len(world.Route),
 		dt:          dt,
 	}
+
+	q.doorPosition = routeLength(world.Route[:3])
 
 	q.starter2End = q.starter1End + len(world.Starter2Route)
 	q.mainEnd = q.starter2End + len(world.MainRoute)
@@ -245,10 +248,15 @@ func (engine *engine) advanceTowardCounter(
 	}
 
 	// Move while maintaining spacing from the student ahead.
-	stoppingPosition := min(
-		counterPosition,
-		personAheadPosition-world.Settings.QueueSpacing,
-	)
+	stoppingPosition := min(counterPosition, personAheadPosition-world.Settings.QueueSpacing)
+
+	waitingForOpening := world.OperatingPhase != environment.OperatingOpen
+
+	if waitingForOpening &&
+		student.PositionAlongRoute <= tickInfo.doorPosition+0.0001 {
+
+		stoppingPosition = min(stoppingPosition, tickInfo.doorPosition)
+	}
 
 	distance := max(0, stoppingPosition-student.PositionAlongRoute)
 
@@ -265,6 +273,15 @@ func (engine *engine) advanceTowardCounter(
 	)
 
 	*remainingTime -= walkingTime
+
+	if waitingForOpening &&
+		student.PositionAlongRoute <= tickInfo.doorPosition+0.0001 {
+
+		// Waiting before opening is not counted as service queue waiting
+		student.QueueWait = 0
+		*remainingTime = 0
+		return false
+	}
 
 	atCounter := student.PositionAlongRoute >= counterPosition-0.0001
 
@@ -375,12 +392,8 @@ func (engine *engine) advanceTowardCounter(
 	)
 
 	if decision.Leave {
-		restoreReservedStarters(world, student)
-
-		student.Status = agents.Abandoned
-		world.Queue.Remove(id)
+		abandonStudent(world, student)
 		*remainingTime = 0
-
 		return true
 	}
 
@@ -577,7 +590,7 @@ func (engine *engine) advancePayment(
 
 	world.Queue.Remove(id)
 
-	advanceStudentAfterPayment(world, student, *remainingTime)
+	advanceStudentOutsideQueue(world, student, *remainingTime)
 	*remainingTime = 0
 
 	return true
@@ -618,7 +631,19 @@ func restoreReservedStarters(world *environment.Environment, student *agents.Stu
 	student.PlannedStarterIDs = nil
 }
 
-func advanceStudentAfterPayment(world *environment.Environment, student *agents.StudentState, dt time.Duration) {
+func advanceStudentOutsideQueue(world *environment.Environment, student *agents.StudentState, dt time.Duration) {
+	// if this student has given up
+	if student.Status == agents.Abandoned && len(student.AbandonRoute) > 0 {
+
+		student.Walk(student.AbandonRoute, world.Settings.WalkingSpeed, dt)
+
+		if student.NextWaypoint >= len(student.AbandonRoute) {
+			student.AbandonRoute = nil
+		}
+
+		return
+	}
+
 	diningAreaIndex := (student.Student.ID - 1) % len(world.DiningAreas)
 	diningArea := world.DiningAreas[diningAreaIndex]
 	remainingTime := dt
