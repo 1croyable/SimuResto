@@ -162,14 +162,35 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	if snapshot.Settings.Cashiers >= 2 {
 		points := append([]agents.Point(nil), layout.Checkout2Route...)
-
 		points = append(points, layout.Cashier2ExitRoute...)
+
+		const roadWidth float32 = 40
 
 		for i := 1; i < len(points); i++ {
 			from := points[i-1]
 			to := points[i]
 
-			vector.StrokeLine(screen, float32(from.X), float32(from.Y), float32(to.X), float32(to.Y), 40, roadColor, true)
+			vector.StrokeLine(
+				screen,
+				float32(from.X), float32(from.Y),
+				float32(to.X), float32(to.Y),
+				roadWidth,
+				roadColor,
+				true,
+			)
+		}
+
+		for i := 1; i < len(points)-1; i++ {
+			p := points[i]
+
+			vector.FillCircle(
+				screen,
+				float32(p.X),
+				float32(p.Y),
+				roadWidth/2,
+				roadColor,
+				true,
+			)
 		}
 	}
 

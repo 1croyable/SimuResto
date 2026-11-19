@@ -10,6 +10,18 @@ func LeaveProbability(basePatience, waiting time.Duration, peopleAhead int) floa
 	if waiting <= 0 {
 		return 0
 	}
-	z := (waiting.Seconds() + 1.0*float64(peopleAhead) - basePatience.Seconds()) / 30.0
-	return 1 / (1 + math.Exp(-z))
+
+	ahead := float64(max(0, peopleAhead))
+
+	// Increasing impatience as waiting approaches personal patience.
+	z := (waiting.Seconds() + ahead -
+		basePatience.Seconds()) / 30.0
+
+	impatience := 1 / (1 + math.Exp(-z))
+
+	// increasing with the number of people ahead.
+	baselineHazard := 0.0001 + 0.00005*ahead
+
+	// Combined probability over one simulated second. F(t) = 1 - e^{-lambda t}
+	return 1 - (1-impatience)*math.Exp(-baselineHazard)
 }
