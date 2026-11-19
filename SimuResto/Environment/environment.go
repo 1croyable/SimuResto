@@ -212,7 +212,7 @@ func New(settings Settings) *Environment {
 			},
 		},
 
-		SimulationSpeed: 1.0,
+		SimulationSpeed: 10.0,
 	}
 
 	aisleEntrance := agents.Point{X: diningAisleX, Y: lowerRoadY}

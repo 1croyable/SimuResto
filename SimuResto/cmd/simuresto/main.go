@@ -23,6 +23,8 @@ type Game struct {
 	tickRemainder int64
 	showStats     bool
 	frameLimiter  client.FrameLimiter
+	SettingsPage  *client.SettingsPage
+	pausedSpeed   float64
 }
 
 func (g *Game) Update() error {
@@ -31,7 +33,7 @@ func (g *Game) Update() error {
 	x, y := ebiten.CursorPosition()
 
 	// Toggle statistics overlay
-	if g.Mode != client.Home && inpututil.IsKeyJustPressed(ebiten.KeyF3) {
+	if (g.Mode == client.Running || g.Mode == client.Paused) && inpututil.IsKeyJustPressed(ebiten.KeyF3) {
 		g.showStats = !g.showStats
 	}
 
@@ -39,29 +41,44 @@ func (g *Game) Update() error {
 	case client.Home:
 		if clicked {
 			if client.MenuButtonHit(x, y, client.Button1Y) {
-				g.startSimulation() // create the world
+				g.SettingsPage = client.NewSettingsPage(&g.Settings)
+				g.Mode = client.Configuring
 			} else if client.MenuButtonHit(x, y, client.Button2Y) {
 				return ebiten.Termination
 			}
 		}
 		return nil
 
-	case client.Paused:
-		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-			g.Mode = client.Running
+	case client.Configuring:
+		saved, canceled := g.SettingsPage.Update()
+		if canceled {
+			g.SettingsPage = nil
+			g.Mode = client.Home
 			return nil
 		}
+		if saved {
+			g.SettingsPage = nil
+			g.startSimulation()
+		}
+		return nil
 
+	case client.Paused:
+		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+			g.resumeSimulation()
+			return nil
+		}
 		if clicked {
-			if client.MenuButtonHit(x, y, client.Button1Y) {
-				// Resume
-				g.Mode = client.Running
-			} else if client.MenuButtonHit(x, y, client.Button2Y) {
-				// Restart
+			switch {
+			case client.PauseDecreaseHit(x, y):
+				g.pausedSpeed = client.AdjustPauseSpeed(g.pausedSpeed, -1)
+			case client.PauseIncreaseHit(x, y):
+				g.pausedSpeed = client.AdjustPauseSpeed(g.pausedSpeed, +1)
+			case client.MenuButtonHit(x, y, client.Button1Y+65):
+				g.resumeSimulation()
+			case client.MenuButtonHit(x, y, client.Button2Y+65):
 				g.startSimulation()
-			} else if client.MenuButtonHit(x, y, client.Button3Y) {
+			case client.MenuButtonHit(x, y, client.Button3Y+65):
 				g.closeSimulation()
-				g.tickRemainder = 0
 				g.Mode = client.Home
 			}
 		}
@@ -70,6 +87,7 @@ func (g *Game) Update() error {
 
 	// pause
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		g.pausedSpeed = g.Simulation.World.SimulationSpeed
 		g.Mode = client.Paused
 		return nil
 	}
@@ -90,12 +108,18 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	g.frameLimiter.Wait(g.Settings.FramesPerSecond)
+	g.frameLimiter.Wait(max(1, g.Settings.FramesPerSecond))
 
 	screen.Fill(color.White)
 
 	if g.Mode == client.Home {
 		client.DrawMenu(screen, client.Home)
+		return
+	}
+
+	if g.Mode == client.Configuring {
+		client.DrawMenu(screen, client.Home)
+		g.SettingsPage.Draw(screen)
 		return
 	}
 
@@ -205,7 +229,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Pause menu overlay
 	if g.Mode == client.Paused {
-		client.DrawMenu(screen, client.Paused)
+		client.DrawPauseMenu(screen, g.pausedSpeed)
 	}
 }
 
@@ -213,9 +237,17 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return environment.Width, environment.Height
 }
 
+func (g *Game) resumeSimulation() {
+	if g.Simulation != nil {
+		g.Simulation.SetSimulationSpeed(g.pausedSpeed, g.Simulation.World)
+	}
+	g.Mode = client.Running
+}
+
 func (g *Game) startSimulation() {
 	g.closeSimulation()
 
+	ebiten.SetTPS(g.Settings.TicksPerSecond)
 	world := environment.New(g.Settings)
 
 	g.Simulation = engine.NewGame(world)
