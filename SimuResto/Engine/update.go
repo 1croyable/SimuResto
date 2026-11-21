@@ -34,8 +34,7 @@ func (engine *engine) advanceQueue(world *environment.Environment, dt time.Durat
 		return
 	}
 
-	// The common FIFO line ends at the checkout fork, not at either cashier.
-	// Checkout2Route[0] is the fork point (e.g. 540, 520).
+	// The common FIFO line ends at the first point of the upper checkout branch.
 	if len(world.Checkout2Route) == 0 {
 		return
 	}
