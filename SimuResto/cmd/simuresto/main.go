@@ -3,6 +3,7 @@ package main
 import (
 	"image/color"
 	"log"
+	"strconv"
 	"time"
 
 	agents "simuresto/SimuResto/Agents"
@@ -154,6 +155,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// Water & sauce
 	station := layout.WaterAndSauceRegion
 	vector.FillRect(screen, station.X, station.Y, station.Width, station.Height, color.RGBA{R: 70, G: 113, B: 140, A: 255}, false)
+	portions := strconv.Itoa(snapshot.SaucePortions)
+	ebitenutil.DebugPrintAt(screen, portions, int(station.X+station.Width/2)-3*len(portions), int(station.Y+station.Height/2)-8)
 
 	// Waste area
 	vector.FillRect(screen, layout.WasteRegion.X, layout.WasteRegion.Y, layout.WasteRegion.Width, layout.WasteRegion.Height, color.RGBA{R: 237, G: 225, B: 210, A: 255}, false)

@@ -20,19 +20,24 @@ type StudentData struct {
 }
 
 type StudentObservation struct {
-	CanLeave       bool
-	PeopleAhead    int           // People ahead, including anyone currently being served.
-	Waiting        time.Duration // Total time spent
-	Elapsed        time.Duration // Time spent waiting during this update.
-	Dishes         []Dish
-	Temperature    float64
-	ChooseStarters bool // Request starter selection.
+	CanLeave         bool
+	PeopleAhead      int           // People ahead, including anyone currently being served.
+	Waiting          time.Duration // Total time spent
+	Elapsed          time.Duration // Time spent waiting during this update.
+	Dishes           []Dish
+	Temperature      float64
+	ChooseStarters   bool          // Request starter selection.
+	MinDiningTime    time.Duration // A positive minimum requests a dining plan.
+	MaxDiningTime    time.Duration
+	SauceProbability float64
 }
 
 type StudentDecision struct {
 	Leave      bool
 	DishID     string
 	StarterIDs []string
+	DiningTime time.Duration
+	WantsSauce bool
 }
 
 // Walk follows the route at walkingSpeed map units per second and returns the unused time.
@@ -63,6 +68,14 @@ func (studentStatus *StudentState) Walk(route []Point, walkingSpeed float64, dt 
 }
 
 func (studentStatus *StudentState) Decide(state StudentObservation) StudentDecision {
+	if state.MinDiningTime > 0 {
+		span := state.MaxDiningTime - state.MinDiningTime
+		return StudentDecision{
+			DiningTime: state.MinDiningTime + time.Duration(studentStatus.randomGenerator.Int63n(int64(span)+1)),
+			WantsSauce: studentStatus.randomGenerator.Float64() < state.SauceProbability,
+		}
+	}
+
 	// choose starters
 	if state.ChooseStarters {
 		return StudentDecision{

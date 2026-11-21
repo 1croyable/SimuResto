@@ -602,6 +602,16 @@ func (engine *engine) advancePayment(
 	student.NextWaypoint = 0
 
 	world.Queue.Remove(id)
+	dining := engine.requestStudentDecision(student, agents.StudentObservation{
+		MinDiningTime:    environment.MinDiningTime,
+		MaxDiningTime:    environment.MaxDiningTime,
+		SauceProbability: environment.SauceProbability,
+	})
+	student.DiningTime = dining.DiningTime
+	student.RemainingDining = dining.DiningTime
+	if dining.WantsSauce && world.Sauce.Portions > 0 {
+		student.RetrySauce = !joinSauceQueue(world, student)
+	}
 
 	advanceStudentOutsideQueue(world, student, *remainingTime)
 	*remainingTime = 0
@@ -668,17 +678,22 @@ func advanceStudentOutsideQueue(world *environment.Environment, student *agents.
 		return
 	}
 
-	diningAreaIndex := (student.Student.ID - 1) % len(world.DiningAreas)
-	diningArea := world.DiningAreas[diningAreaIndex]
+	diningArea := diningAreaFor(world, student)
 	remainingTime := dt
 
 	for remainingTime > 0 {
+		if student.Target == agents.TargetSauce {
+			remainingTime = advanceSaucePickup(world, student, remainingTime)
+			continue
+		}
 		switch student.Status {
 		case agents.Walking:
 			switch student.Target {
 			case agents.TargetDining:
 				diningRoute := diningArea.Route
-				if student.CashierIndex == 1 {
+				if len(student.SauceRoute) > 0 {
+					diningRoute = student.SauceRoute
+				} else if student.CashierIndex == 1 {
 					// Continue forward from the upper cashier, without returning
 					// to the lower checkout road.
 					diningRoute = append([]agents.Point(nil), world.Cashier2ExitRoute...)
@@ -689,7 +704,7 @@ func advanceStudentOutsideQueue(world *environment.Environment, student *agents.
 					return
 				}
 				student.Status = agents.Dining
-				student.RemainingDining = world.Settings.DiningTime
+				student.SauceRoute = nil
 
 			case agents.TargetTrash:
 				remainingTime = student.Walk(diningArea.CleanupRoute, world.Settings.WalkingSpeed, remainingTime)
@@ -711,6 +726,14 @@ func advanceStudentOutsideQueue(world *environment.Environment, student *agents.
 			}
 
 		case agents.Dining:
+			if student.RemainingDining <= student.DiningTime/2 || world.Sauce.Portions == 0 {
+				student.RetrySauce = false
+			}
+			if student.RetrySauce &&
+				world.Sauce.Queue.Len() <= world.Sauce.Queue.Capacity()/2 && joinSauceQueue(world, student) {
+				student.RetrySauce = false
+				continue
+			}
 			timeSpentEating := min(remainingTime, student.RemainingDining)
 			remainingTime -= timeSpentEating
 			student.RemainingDining -= timeSpentEating

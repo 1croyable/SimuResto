@@ -12,8 +12,14 @@ import (
 
 // Default configuration values and simulation constants.
 const (
-	DefaultCashiers = 2
-	MaxCashiers     = 2
+	DefaultCashiers  = 2
+	MaxCashiers      = 2
+	MinDiningTime    = 8 * time.Minute
+	MaxDiningTime    = 20 * time.Minute
+	SaucePortions    = 100
+	SauceCapacity    = 8 //length of queue of sauce
+	SaucePickupTime  = 6 * time.Second
+	SauceProbability = 0.50 //how likely are students want sauce?
 )
 
 type Settings struct {
@@ -38,7 +44,6 @@ type Settings struct {
 	RestockDuration time.Duration
 
 	PaymentTime time.Duration
-	DiningTime  time.Duration
 
 	ChoiceTemperature float64 // food selection
 
@@ -75,7 +80,6 @@ func DefaultSettings() Settings {
 		RestockDuration: 10 * time.Second,
 
 		PaymentTime: 4 * time.Second,
-		DiningTime:  5 * time.Second,
 
 		ChoiceTemperature: 0.3,
 
@@ -304,7 +308,7 @@ func (s Settings) Validate() error {
 		duration time.Duration
 	}{
 		{"Service Time", s.ServiceTime}, {"Restock Duration", s.RestockDuration},
-		{"Payment Time", s.PaymentTime}, {"Dining Time", s.DiningTime},
+		{"Payment Time", s.PaymentTime},
 	} {
 		if err := positive(item.name, item.duration); err != nil {
 			return err

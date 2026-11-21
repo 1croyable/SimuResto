@@ -19,6 +19,7 @@ type StudentState struct {
 
 	Status            StudentStatus
 	Meal              Meal
+	DiningTime        time.Duration
 	RemainingDining   time.Duration
 	CounterReleasedAt time.Duration // Simulated time when the student last left a service counter.
 
@@ -35,6 +36,10 @@ type StudentState struct {
 
 	CashierIndex int // 0 lower cahier, 1 upper
 
+	RetrySauce           bool
+	RemainingSaucePickup time.Duration
+
+	SauceRoute   []Point // Route to the sauce station or from it to the dining area.
 	AbandonRoute []Point
 }
 

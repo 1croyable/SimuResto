@@ -110,12 +110,13 @@ type Report struct {
 
 type Snapshot struct {
 	Report
-	Layout   LayoutSnapshot
-	Queue    QueueSnapshot
-	Zones    []ZoneSnapshot
-	Done     bool
-	Counters [3][]environment.CounterStock
-	Restock  environment.RestockState
+	Layout        LayoutSnapshot
+	Queue         QueueSnapshot
+	Zones         []ZoneSnapshot
+	Done          bool
+	Counters      [3][]environment.CounterStock
+	Restock       environment.RestockState
+	SaucePortions int
 }
 
 func averageCounterWait(c environment.CounterStatistics) time.Duration {
@@ -313,6 +314,7 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 
 	s.Counters = world.Counters
 	s.Restock = world.Restock
+	s.SaucePortions = world.Sauce.Portions
 
 	for i := range s.Counters {
 		s.Counters[i] = append(

@@ -24,6 +24,12 @@ type DiningArea struct {
 	CleanupRoute      []agents.Point
 }
 
+type SauceStation struct {
+	Queue    *model.Queue
+	Portions int
+	FreeAt   time.Duration // Simulation time when the last pickup ended.
+}
+
 // the engine updates it and the client draws it.
 type Environment struct {
 	Settings       Settings
@@ -57,6 +63,7 @@ type Environment struct {
 	Menu     []agents.Dish
 	Counters [3][]CounterStock // Starter 1, Starter 2, Main
 	Restock  RestockState
+	Sauce    SauceStation
 
 	Queue *model.Queue
 
@@ -235,6 +242,8 @@ func New(settings Settings) *Environment {
 	world.InitCounters()
 
 	world.Queue, _ = model.NewQueue(settings.StudentCount)
+	world.Sauce.Queue, _ = model.NewQueue(SauceCapacity)
+	world.Sauce.Portions = SaucePortions
 
 	world.StudentStates = make([]agents.StudentState, 0, settings.StudentCount)
 
