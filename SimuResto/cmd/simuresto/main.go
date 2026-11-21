@@ -151,6 +151,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		region := area.Region
 		vector.FillRect(screen, region.X, region.Y, region.Width, region.Height, color.RGBA{R: 224, G: 234, B: 228, A: 255}, false)
 	}
+	// Water & sauce
+	station := layout.WaterAndSauceRegion
+	vector.FillRect(screen, station.X, station.Y, station.Width, station.Height, color.RGBA{R: 70, G: 113, B: 140, A: 255}, false)
 
 	// Waste area
 	vector.FillRect(screen, layout.WasteRegion.X, layout.WasteRegion.Y, layout.WasteRegion.Width, layout.WasteRegion.Height, color.RGBA{R: 237, G: 225, B: 210, A: 255}, false)

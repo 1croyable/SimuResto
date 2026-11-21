@@ -30,12 +30,13 @@ type Environment struct {
 	TimePassed     time.Duration // Total simulated time since starting
 	OperatingPhase OperatingPhase
 
-	Roads          []Region
-	StarterRegions [2]Region
-	MainRegion     Region
-	CashierRegion  Region
-	Cashier2Region Region
-	WasteRegion    Region
+	Roads               []Region
+	StarterRegions      [2]Region
+	MainRegion          Region
+	CashierRegion       Region
+	Cashier2Region      Region
+	WasteRegion         Region
+	WaterAndSauceRegion Region
 
 	DiningAreas [3]DiningArea
 
@@ -94,7 +95,8 @@ func New(settings Settings) *Environment {
 			{Name: "Left dining", Region: Region{130, 200, 605, 265}},
 			{Name: "Right dining", Region: Region{805, 200, 335, 265}},
 		},
-		WasteRegion: Region{805, 550, 270, 120},
+		WasteRegion:         Region{805, 550, 270, 120},
+		WaterAndSauceRegion: Region{468, 405, 50, 36},
 
 		// Entrance → Starter 1
 		Starter1Route: []agents.Point{

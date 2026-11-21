@@ -58,14 +58,15 @@ type DiningAreaSnapshot struct {
 }
 
 type LayoutSnapshot struct {
-	Roads          []environment.Region
-	StarterRegions [2]environment.Region
-	MainRegion     environment.Region
-	DiningAreas    [3]DiningAreaSnapshot
-	WasteRegion    environment.Region
-	Route          []agents.Point
-	Starter2Route  []agents.Point
-	MainRoute      []agents.Point
+	Roads               []environment.Region
+	StarterRegions      [2]environment.Region
+	MainRegion          environment.Region
+	DiningAreas         [3]DiningAreaSnapshot
+	WasteRegion         environment.Region
+	WaterAndSauceRegion environment.Region
+	Route               []agents.Point
+	Starter2Route       []agents.Point
+	MainRoute           []agents.Point
 
 	Cashier1Region environment.Region
 	Checkout1Route []agents.Point
@@ -143,19 +144,20 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 			OperatingPhase: world.OperatingPhase,
 		},
 		Layout: LayoutSnapshot{
-			Roads:             append([]environment.Region(nil), world.Roads...),
-			StarterRegions:    world.StarterRegions,
-			MainRegion:        world.MainRegion,
-			Cashier1Region:    world.CashierRegion,
-			WasteRegion:       world.WasteRegion,
-			Route:             append([]agents.Point(nil), world.Starter1Route...),
-			Starter2Route:     append([]agents.Point(nil), world.Starter2Route...),
-			MainRoute:         append([]agents.Point(nil), world.MainRoute...),
-			Checkout1Route:    append([]agents.Point(nil), world.Checkout1Route...),
-			ExitRoute:         append([]agents.Point(nil), world.ExitRoute...),
-			Cashier2Region:    world.Cashier2Region,
-			Checkout2Route:    append([]agents.Point(nil), world.Checkout2Route...),
-			Cashier2ExitRoute: append([]agents.Point(nil), world.Cashier2ExitRoute...),
+			Roads:               append([]environment.Region(nil), world.Roads...),
+			StarterRegions:      world.StarterRegions,
+			MainRegion:          world.MainRegion,
+			Cashier1Region:      world.CashierRegion,
+			WasteRegion:         world.WasteRegion,
+			WaterAndSauceRegion: world.WaterAndSauceRegion,
+			Route:               append([]agents.Point(nil), world.Starter1Route...),
+			Starter2Route:       append([]agents.Point(nil), world.Starter2Route...),
+			MainRoute:           append([]agents.Point(nil), world.MainRoute...),
+			Checkout1Route:      append([]agents.Point(nil), world.Checkout1Route...),
+			ExitRoute:           append([]agents.Point(nil), world.ExitRoute...),
+			Cashier2Region:      world.Cashier2Region,
+			Checkout2Route:      append([]agents.Point(nil), world.Checkout2Route...),
+			Cashier2ExitRoute:   append([]agents.Point(nil), world.Cashier2ExitRoute...),
 		},
 	}
 	for i, area := range world.DiningAreas {
