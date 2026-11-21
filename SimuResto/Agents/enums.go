@@ -33,6 +33,7 @@ const (
 	TargetCashier  StudentTarget = "cashier"
 	TargetSauce    StudentTarget = "sauce"
 	TargetDining   StudentTarget = "dining"
+	TargetSeatWait StudentTarget = "waiting for seat"
 	TargetTrash    StudentTarget = "trash"
 	TargetExit     StudentTarget = "exit"
 )

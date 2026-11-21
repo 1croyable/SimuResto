@@ -16,14 +16,6 @@ type Region struct {
 	X, Y, Width, Height float32
 }
 
-type DiningArea struct {
-	Name              string
-	Region            Region
-	Route             []agents.Point
-	UpperCashierRoute []agents.Point
-	CleanupRoute      []agents.Point
-}
-
 type SauceStation struct {
 	Queue    *model.Queue
 	Portions int
@@ -44,7 +36,9 @@ type Environment struct {
 	WasteRegion         Region
 	WaterAndSauceRegion Region
 
-	DiningAreas [3]DiningArea
+	Dining     DiningLayout
+	SeatOwners []int // Indexed by seat ID - 1. A zero owner == the seat is free.
+	SeatQueue  *model.Queue
 
 	Starter1Route  []agents.Point
 	Starter2Route  []agents.Point
@@ -52,8 +46,7 @@ type Environment struct {
 	Checkout1Route []agents.Point
 	ExitRoute      []agents.Point
 
-	Checkout2Route    []agents.Point
-	Cashier2ExitRoute []agents.Point
+	Checkout2Route []agents.Point
 
 	StudentStates []agents.StudentState
 	StudentsByID  map[int]*agents.StudentState
@@ -94,7 +87,6 @@ func New(settings Settings) *Environment {
 		diningTop      = 200
 		diningHeight   = laneTop - 25 - diningTop
 	)
-	upperEntrance := agents.Point{X: diningAisleX, Y: upperPaymentY}
 	wasteStop := agents.Point{X: 930, Y: laneBottom + lowerZoneDepth/2}
 
 	world := &Environment{
@@ -106,14 +98,9 @@ func New(settings Settings) *Environment {
 			{138, laneBottom, 74, 34},
 			{238, laneBottom, 74, 34},
 		},
-		MainRegion:     Region{344, laneBottom, 207, lowerZoneDepth},
-		CashierRegion:  Region{620, laneBottom, 105, deskHeight},
-		Cashier2Region: Region{620, upperDeskY, 105, deskHeight},
-		DiningAreas: [3]DiningArea{
-			{Name: "Window dining", Region: Region{180, 120, 820, 55}},
-			{Name: "Left dining", Region: Region{130, diningTop, 605, diningHeight}},
-			{Name: "Right dining", Region: Region{805, diningTop, 335, diningHeight}},
-		},
+		MainRegion:          Region{344, laneBottom, 207, lowerZoneDepth},
+		CashierRegion:       Region{620, laneBottom, 105, deskHeight},
+		Cashier2Region:      Region{620, upperDeskY, 105, deskHeight},
 		WasteRegion:         Region{805, laneBottom, 270, lowerZoneDepth},
 		WaterAndSauceRegion: Region{468, upperDeskY, 50, 36},
 
@@ -134,8 +121,6 @@ func New(settings Settings) *Environment {
 			{X: 620, Y: upperPaymentY},
 			{X: 670, Y: upperPaymentY},
 		},
-
-		Cashier2ExitRoute: []agents.Point{upperEntrance},
 
 		// Starter 1 → Starter 2
 		Starter2Route: []agents.Point{{X: 275, Y: lowerPickupY}},
@@ -231,26 +216,14 @@ func New(settings Settings) *Environment {
 		SimulationSpeed: 10.0,
 	}
 
-	aisleEntrance := agents.Point{X: diningAisleX, Y: lowerPickupY}
-	for i := range world.DiningAreas {
-		area := &world.DiningAreas[i]
-		region := area.Region
-		seat := agents.Point{X: float64(region.X + region.Width/2), Y: float64(region.Y + region.Height/2)}
-		// Approach the window seats from the front and the long tables from the open aisle.
-		switch i {
-		case 0:
-			seat.Y = float64(region.Y + region.Height)
-		case 1:
-			seat.X = float64(region.X + region.Width - 30)
-		}
-		aisleTurn := agents.Point{X: diningAisleX, Y: seat.Y}
-
-		area.Route = []agents.Point{aisleEntrance, aisleTurn, seat}
-
-		area.UpperCashierRoute = []agents.Point{upperEntrance, aisleTurn, seat}
-
-		area.CleanupRoute = []agents.Point{aisleTurn, {X: diningAisleX, Y: laneY}, {X: wasteStop.X, Y: laneY}, wasteStop}
+	areas := [3]Region{
+		{180, 120, 820, 55},
+		{130, diningTop, 605, diningHeight},
+		{805, diningTop, 335, diningHeight},
 	}
+	world.Dining = newDiningLayout(world, areas, diningAisleX, wasteStop)
+	world.SeatOwners = make([]int, len(world.Dining.Seats))
+	world.SeatQueue, _ = model.NewQueue(max(1, settings.StudentCount))
 
 	world.InitCounters()
 

@@ -13,12 +13,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
-const (
-	tableWidth = 28
-	seatSize   = 8
-	seatOffset = tableWidth/2 + 2 + seatSize/2
-)
-
 var (
 	tableColor = color.RGBA{R: 207, G: 224, B: 214, A: 255}
 	seatColor  = color.RGBA{R: 112, G: 151, B: 130, A: 255}
@@ -74,70 +68,12 @@ func DrawFloorplan(screen *ebiten.Image, snapshot engine.Snapshot) {
 }
 
 func drawDiningFurniture(screen *ebiten.Image, layout engine.LayoutSnapshot) {
-	window := layout.DiningAreas[0].Region
-	const windowSeats = 30
-	vector.FillRect(screen, window.X, window.Y, window.Width, 30, tableColor, false)
-	for i := range windowSeats {
-		x := window.X + (float32(i)+0.5)*window.Width/windowSeats
-		drawSeat(screen, x, window.Y+41)
+	for _, tabletop := range layout.Tabletops {
+		vector.FillRect(screen, tabletop.X, tabletop.Y, tabletop.Width, tabletop.Height, tableColor, false)
 	}
-
-	left := layout.DiningAreas[1].Region
-	// Keep a cross aisle between the table ends and the sauce queue.
-	longTableHeight := layout.WaterAndSauceRegion.Y - 48 - left.Y
-	seatsPerSide := [...]int{7, 7, 7, 7, 6}
-	leftColumnWidth := left.Width / float32(1+len(seatsPerSide))
-	firstX := left.X + leftColumnWidth/2
-	drawSquareTableColumn(screen, left, firstX)
-	for i, seats := range seatsPerSide {
-		x := firstX + float32(i+1)*leftColumnWidth
-		drawVerticalTable(screen, x, left.Y, longTableHeight, seats)
+	for _, seat := range layout.SeatPositions {
+		x, y := float32(seat.X), float32(seat.Y)
+		const size = environment.SeatSize
+		vector.FillRect(screen, x-size/2, y-size/2, size, size, seatColor, false)
 	}
-
-	right := layout.DiningAreas[2].Region
-	const columns, rows = 4, 4
-	for row := range rows {
-		y := right.Y + (float32(row)+0.5)*right.Height/rows
-		for col := range columns {
-			x := right.X + (float32(col)+0.5)*right.Width/columns
-			drawPairedTable(screen, x, y)
-		}
-	}
-}
-
-func drawSquareTableColumn(screen *ebiten.Image, area environment.Region, x float32) {
-	const rows = 4
-	rowHeight := area.Height / rows
-	for row := range rows {
-		y := area.Y + (float32(row)+0.5)*rowHeight
-		vector.FillRect(screen, x-tableWidth/2, y-tableWidth/2, tableWidth, tableWidth, tableColor, false)
-		drawSeat(screen, x-seatOffset, y)
-		drawSeat(screen, x+seatOffset, y)
-		drawSeat(screen, x, y-seatOffset)
-		drawSeat(screen, x, y+seatOffset)
-	}
-}
-
-func drawPairedTable(screen *ebiten.Image, x, y float32) {
-	const seam = 1
-	for half := range 2 {
-		centerX := x + (float32(half)-0.5)*(tableWidth+seam)
-		vector.FillRect(screen, centerX-tableWidth/2, y-tableWidth/2, tableWidth, tableWidth, tableColor, false)
-		drawSeat(screen, centerX, y-seatOffset)
-		drawSeat(screen, centerX, y+seatOffset)
-	}
-}
-
-func drawVerticalTable(screen *ebiten.Image, x, top, height float32, seatsPerSide int) {
-	seatSpacing := height / float32(seatsPerSide)
-	vector.FillRect(screen, x-tableWidth/2, top, tableWidth, height, tableColor, false)
-	for i := range seatsPerSide {
-		y := top + (float32(i)+0.5)*seatSpacing
-		drawSeat(screen, x-seatOffset, y)
-		drawSeat(screen, x+seatOffset, y)
-	}
-}
-
-func drawSeat(screen *ebiten.Image, x, y float32) {
-	vector.FillRect(screen, x-seatSize/2, y-seatSize/2, seatSize, seatSize, seatColor, false)
 }
