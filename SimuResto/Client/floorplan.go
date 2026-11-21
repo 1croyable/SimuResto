@@ -6,7 +6,6 @@ import (
 
 	agents "simuresto/SimuResto/Agents"
 	engine "simuresto/SimuResto/Engine"
-	environment "simuresto/SimuResto/Environment"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -73,7 +72,7 @@ func drawDiningFurniture(screen *ebiten.Image, layout engine.LayoutSnapshot) {
 	}
 	for _, seat := range layout.SeatPositions {
 		x, y := float32(seat.X), float32(seat.Y)
-		const size = environment.SeatSize
+		const size = engine.SeatSize
 		vector.FillRect(screen, x-size/2, y-size/2, size, size, seatColor, false)
 	}
 }

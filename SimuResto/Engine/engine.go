@@ -9,7 +9,7 @@ import (
 )
 
 // The engine coordinates agent execution.
-// All simulation states are maintained by Environment.
+// Environment holds mutable simulation state, while dining holds the fixed map.
 type engine struct {
 	StudentAgents map[int]*StudentAgent
 	StaffAgents   map[int]*StaffAgent
@@ -19,6 +19,7 @@ type engine struct {
 
 	arrivals  *randomness.ArrivalProcess
 	generator *agents.StudentGenerator
+	dining    DiningLayout
 }
 
 func newEngine() *engine {

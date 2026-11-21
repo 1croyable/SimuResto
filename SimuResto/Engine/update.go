@@ -607,13 +607,13 @@ func (engine *engine) advancePayment(
 	student.DiningTime = dining.DiningTime
 	student.RemainingDining = dining.DiningTime
 	if student.Student.WantsSauce && world.Sauce.Portions > 0 {
-		student.RetrySauce = !joinSauceQueue(world, student)
+		student.RetrySauce = !engine.joinSauceQueue(world, student)
 	}
 	if student.Target != agents.TargetSauce {
-		requestSeat(world, student, world.Dining.CheckoutNodes[cashierIndex], nil)
+		engine.requestSeat(world, student, engine.dining.CheckoutNodes[cashierIndex], nil)
 	}
 
-	advanceStudentOutsideQueue(world, student, *remainingTime)
+	engine.advanceStudentOutsideQueue(world, student, *remainingTime)
 	*remainingTime = 0
 
 	return true
@@ -665,7 +665,7 @@ func restoreReservedStarters(_ *environment.Environment, student *agents.Student
 	student.PlannedStarterIDs = nil
 }
 
-func advanceStudentOutsideQueue(world *environment.Environment, student *agents.StudentState, dt time.Duration) {
+func (e *engine) advanceStudentOutsideQueue(world *environment.Environment, student *agents.StudentState, dt time.Duration) {
 	// if this student has given up
 	if student.Status == agents.Abandoned && len(student.AbandonRoute) > 0 {
 
@@ -682,7 +682,7 @@ func advanceStudentOutsideQueue(world *environment.Environment, student *agents.
 
 	for remainingTime > 0 {
 		if student.Target == agents.TargetSauce {
-			remainingTime = advanceSaucePickup(world, student, remainingTime)
+			remainingTime = e.advanceSaucePickup(world, student, remainingTime)
 			continue
 		}
 		switch student.Status {
@@ -693,8 +693,8 @@ func advanceStudentOutsideQueue(world *environment.Environment, student *agents.
 				if student.NextWaypoint < len(student.DiningRoute) {
 					return
 				}
-				student.DiningNode = world.Dining.NextWaitingNode(student.DiningNode)
-				student.DiningRoute = append(student.DiningRoute[:0], world.Dining.Point(student.DiningNode))
+				student.DiningNode = e.dining.NextWaitingNode(student.DiningNode)
+				student.DiningRoute = append(student.DiningRoute[:0], e.dining.Point(student.DiningNode))
 				student.NextWaypoint = 0
 			case agents.TargetDining:
 				remainingTime = student.Walk(student.DiningRoute, world.Settings.WalkingSpeed, remainingTime)
@@ -729,7 +729,7 @@ func advanceStudentOutsideQueue(world *environment.Environment, student *agents.
 				student.RetrySauce = false
 			}
 			if student.RetrySauce &&
-				world.Sauce.Queue.Len() <= world.Sauce.Queue.Capacity()/2 && joinSauceQueue(world, student) {
+				world.Sauce.Queue.Len() <= world.Sauce.Queue.Capacity()/2 && e.joinSauceQueue(world, student) {
 				student.RetrySauce = false
 				continue
 			}
@@ -739,7 +739,7 @@ func advanceStudentOutsideQueue(world *environment.Environment, student *agents.
 			if student.RemainingDining > 0 {
 				return
 			}
-			leaveSeatForTrayReturn(world, student)
+			e.leaveSeatForTrayReturn(world, student)
 
 		default:
 			return

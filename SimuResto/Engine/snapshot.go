@@ -125,7 +125,7 @@ func staffUtilization(c environment.CounterStatistics, elapsed time.Duration) fl
 	return 100 * float64(c.TotalServiceTime) / float64(elapsed)
 }
 
-func buildSnapshot(world *environment.Environment, done bool, previous Snapshot) Snapshot {
+func buildSnapshot(world *environment.Environment, dining *DiningLayout, done bool, previous Snapshot) Snapshot {
 	s := Snapshot{
 		Done: done,
 		Report: Report{
@@ -157,9 +157,9 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 	s.Layout.Tabletops = previous.Layout.Tabletops
 	s.Layout.SeatPositions = previous.Layout.SeatPositions
 	if s.Layout.Tabletops == nil {
-		s.Layout.Tabletops = append([]environment.Region(nil), world.Dining.Tabletops...)
-		s.Layout.SeatPositions = make([]agents.Point, len(world.Dining.Seats))
-		for i, seat := range world.Dining.Seats {
+		s.Layout.Tabletops = append([]environment.Region(nil), dining.Tabletops...)
+		s.Layout.SeatPositions = make([]agents.Point, len(dining.Seats))
+		for i, seat := range dining.Seats {
 			s.Layout.SeatPositions[i] = seat.Position
 		}
 	}

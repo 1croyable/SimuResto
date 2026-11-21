@@ -1,9 +1,10 @@
-package environment
+package engine
 
 import (
 	"slices"
 
 	agents "simuresto/SimuResto/Agents"
+	environment "simuresto/SimuResto/Environment"
 )
 
 const (
@@ -15,40 +16,45 @@ const (
 type DiningSeat struct {
 	Position  agents.Point
 	Table     int
-	Neighbors []int
+	Neighbors []int // Neighbors contains eat indexes. At a table already in use, seat selection prefers seats whose neighbors are all free.
 	Node      int
-	Access    agents.Point
+	Access    agents.Point // Access is the turning point between the aisle node and the seat, set by connectSeat.
 }
 
 type DiningLayout struct {
-	Tabletops []Region
+	Tabletops []environment.Region
 	Seats     []DiningSeat
 
 	tableCount int
-	obstacles  []Region
+	obstacles  []environment.Region
 	nodes      []agents.Point
 	edges      [][]int
 	waiting    []int
 
-	CheckoutNodes [MaxCashiers]int
+	CheckoutNodes [environment.MaxCashiers]int
 	SauceEntrance int
 	SauceExit     int
 	TrayReturn    int
 }
 
-func newDiningLayout(world *Environment, areas [3]Region, aisleX float64, tray agents.Point) DiningLayout {
+func newDiningLayout(world *environment.Environment) DiningLayout {
 	var layout DiningLayout
 	sauce := world.WaterAndSauceRegion
-	window, left, right := areas[0], areas[1], areas[2]
+	const aisleX, diningTop = 770, 200
+	laneTop := world.Cashier2Region.Y + world.Cashier2Region.Height
+	diningHeight := laneTop - 25 - diningTop
+	window := environment.Region{X: 180, Y: 120, Width: 820, Height: 55}
+	left := environment.Region{X: 130, Y: diningTop, Width: 605, Height: diningHeight}
+	right := environment.Region{X: 805, Y: diningTop, Width: 335, Height: diningHeight}
 	type seatEntry struct {
 		index     int
 		direction agents.Point
 	}
 	var entries []seatEntry
-	addTable := func(bounds Region, parts ...Region) int {
+	addTable := func(bounds environment.Region, parts ...environment.Region) int {
 		layout.obstacles = append(layout.obstacles, bounds)
 		if len(parts) == 0 {
-			parts = []Region{bounds}
+			parts = []environment.Region{bounds}
 		}
 		layout.Tabletops = append(layout.Tabletops, parts...)
 		table := layout.tableCount
@@ -66,7 +72,7 @@ func newDiningLayout(world *Environment, areas [3]Region, aisleX float64, tray a
 		layout.Seats[second].Neighbors = append(layout.Seats[second].Neighbors, first)
 	}
 
-	table := addTable(Region{window.X, window.Y, window.Width, 30})
+	table := addTable(environment.Region{X: window.X, Y: window.Y, Width: window.Width, Height: 30})
 	const windowSeats = 30
 	for i := range windowSeats {
 		x := float64(window.X + (float32(i)+0.5)*window.Width/windowSeats)
@@ -83,7 +89,9 @@ func newDiningLayout(world *Environment, areas [3]Region, aisleX float64, tray a
 	// The square tables have a seat on each side, with adjacent seats around their perimeter.
 	for row := range rows {
 		y := left.Y + (float32(row)+0.5)*left.Height/rows
-		table := addTable(Region{firstX - tableWidth/2, y - tableWidth/2, tableWidth, tableWidth})
+		table := addTable(environment.Region{
+			X: firstX - tableWidth/2, Y: y - tableWidth/2, Width: tableWidth, Height: tableWidth,
+		})
 		x, cy := float64(firstX), float64(y)
 		indices := [4]int{
 			addSeat(table, x-seatOffset, cy, -1, 0),
@@ -99,7 +107,7 @@ func newDiningLayout(world *Environment, areas [3]Region, aisleX float64, tray a
 	longHeight := sauce.Y - 48 - left.Y
 	for col, count := range leftCounts {
 		x := firstX + float32(col+1)*leftStride
-		table := addTable(Region{x - tableWidth/2, left.Y, tableWidth, longHeight})
+		table := addTable(environment.Region{X: x - tableWidth/2, Y: left.Y, Width: tableWidth, Height: longHeight})
 		for _, side := range [...]float64{-1, 1} {
 			for row := range count {
 				y := float64(left.Y + (float32(row)+0.5)*longHeight/float32(count))
@@ -117,9 +125,13 @@ func newDiningLayout(world *Environment, areas [3]Region, aisleX float64, tray a
 		y := right.Y + (float32(row)+0.5)*right.Height/rows
 		for col := range rightColumns {
 			x := right.X + (float32(col)+0.5)*rightStride
-			bounds := Region{x - tableWidth - seam/2.0, y - tableWidth/2, 2*tableWidth + seam, tableWidth}
-			table := addTable(bounds, Region{bounds.X, bounds.Y, tableWidth, tableWidth},
-				Region{bounds.X + tableWidth + seam, bounds.Y, tableWidth, tableWidth})
+			bounds := environment.Region{
+				X: x - tableWidth - seam/2.0, Y: y - tableWidth/2, Width: 2*tableWidth + seam, Height: tableWidth,
+			}
+			first := environment.Region{X: bounds.X, Y: bounds.Y, Width: tableWidth, Height: tableWidth}
+			second := first
+			second.X += tableWidth + seam
+			table := addTable(bounds, first, second)
 			for _, side := range [...]float64{-1, 1} {
 				seatY := float64(y) + side*seatOffset
 				left := addSeat(table, float64(x)-(tableWidth+seam)/2.0, seatY, 0, side)
@@ -157,12 +169,13 @@ func newDiningLayout(world *Environment, areas [3]Region, aisleX float64, tray a
 	layout.SauceExit = grid[agents.Point{X: aisleX, Y: queueY - 16}]
 	lower := world.Checkout1Route[len(world.Checkout1Route)-1]
 	upper := world.Checkout2Route[len(world.Checkout2Route)-1]
-	exitY := world.ExitRoute[0].Y
+	exit := world.ExitRoute[0]
+	tray := agents.Point{X: exit.X, Y: float64(world.WasteRegion.Y + world.WasteRegion.Height/2)}
 	bottomLeft := grid[agents.Point{X: aisleX, Y: bottom}]
 	upperTurn := layout.addNode(agents.Point{X: aisleX, Y: upper.Y})
-	exitTurn := layout.addNode(agents.Point{X: aisleX, Y: exitY})
+	exitTurn := layout.addNode(agents.Point{X: aisleX, Y: exit.Y})
 	lowerTurn := layout.addNode(agents.Point{X: aisleX, Y: lower.Y})
-	wasteTurn := layout.addNode(agents.Point{X: tray.X, Y: exitY})
+	wasteTurn := layout.addNode(exit)
 	layout.CheckoutNodes[0] = layout.addNode(lower)
 	layout.CheckoutNodes[1] = layout.addNode(upper)
 	layout.TrayReturn = layout.addNode(tray)

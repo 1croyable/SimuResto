@@ -36,9 +36,8 @@ type Environment struct {
 	WasteRegion         Region
 	WaterAndSauceRegion Region
 
-	Dining     DiningLayout
-	SeatOwners []int // Indexed by seat ID - 1. A zero owner == the seat is free.
-	SeatQueue  *model.Queue
+	SeatOwners []int        // Indexed by seat ID - 1. A zero owner == the seat is free.
+	SeatQueue  *model.Queue // Students waiting for a seat, in request order.
 
 	Starter1Route  []agents.Point
 	Starter2Route  []agents.Point
@@ -83,11 +82,7 @@ func New(settings Settings) *Environment {
 		deskHeight     = 60
 		upperDeskY     = laneTop - deskHeight
 		lowerZoneDepth = Height - laneBottom - 12
-		diningAisleX   = 770
-		diningTop      = 200
-		diningHeight   = laneTop - 25 - diningTop
 	)
-	wasteStop := agents.Point{X: 930, Y: laneBottom + lowerZoneDepth/2}
 
 	world := &Environment{
 		Settings:       settings,
@@ -131,7 +126,7 @@ func New(settings Settings) *Environment {
 		// Main course → Cashier
 		Checkout1Route: []agents.Point{{X: 670, Y: lowerPickupY}},
 
-		ExitRoute: []agents.Point{{X: wasteStop.X, Y: laneY}, {X: Width, Y: laneY}},
+		ExitRoute: []agents.Point{{X: 930, Y: laneY}, {X: Width, Y: laneY}},
 
 		Cook: agents.StaffState{
 			Staff:    agents.StaffData{ID: 1, Role: agents.Server, ServiceTime: settings.ServiceTime},
@@ -216,13 +211,6 @@ func New(settings Settings) *Environment {
 		SimulationSpeed: 10.0,
 	}
 
-	areas := [3]Region{
-		{180, 120, 820, 55},
-		{130, diningTop, 605, diningHeight},
-		{805, diningTop, 335, diningHeight},
-	}
-	world.Dining = newDiningLayout(world, areas, diningAisleX, wasteStop)
-	world.SeatOwners = make([]int, len(world.Dining.Seats))
 	world.SeatQueue, _ = model.NewQueue(max(1, settings.StudentCount))
 
 	world.InitCounters()
