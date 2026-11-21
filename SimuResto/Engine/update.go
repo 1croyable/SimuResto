@@ -294,9 +294,9 @@ func (engine *engine) advanceTowardCounter(
 		decision := engine.requestStudentDecision(
 			student,
 			agents.StudentObservation{
-				ChooseStarters: true,
-				Dishes:         world.Menu,
-				Temperature:    world.Settings.ChoiceTemperature,
+				DecisionType: agents.DecideStarters,
+				Dishes:       world.Menu,
+				Temperature:  world.Settings.ChoiceTemperature,
 			},
 		)
 
@@ -340,8 +340,9 @@ func (engine *engine) advanceTowardCounter(
 			}
 			if len(dishes) > 0 {
 				choice := engine.requestStudentDecision(student, agents.StudentObservation{
-					Dishes:      dishes,
-					Temperature: world.Settings.ChoiceTemperature,
+					DecisionType: agents.DecideMainCourse,
+					Dishes:       dishes,
+					Temperature:  world.Settings.ChoiceTemperature,
 				})
 				student.OrderedDishID = choice.DishID
 			}
@@ -377,10 +378,11 @@ func (engine *engine) advanceTowardCounter(
 	decision := engine.requestStudentDecision(
 		student,
 		agents.StudentObservation{
-			CanLeave:    student.Target != agents.TargetCashier,
-			PeopleAhead: peopleAhead,
-			Waiting:     student.QueueWait,
-			Elapsed:     waitingTime,
+			DecisionType: agents.DecideLeaveQueue,
+			CanLeave:     student.Target != agents.TargetCashier,
+			PeopleAhead:  peopleAhead,
+			Waiting:      student.QueueWait,
+			Elapsed:      waitingTime,
 		},
 	)
 
@@ -598,13 +600,13 @@ func (engine *engine) advancePayment(
 
 	world.Queue.Remove(id)
 	dining := engine.requestStudentDecision(student, agents.StudentObservation{
-		MinDiningTime:    environment.MinDiningTime,
-		MaxDiningTime:    environment.MaxDiningTime,
-		SauceProbability: environment.SauceProbability,
+		DecisionType:  agents.DecideDiningTime,
+		MinDiningTime: world.Settings.MinDiningTime,
+		MaxDiningTime: world.Settings.MaxDiningTime,
 	})
 	student.DiningTime = dining.DiningTime
 	student.RemainingDining = dining.DiningTime
-	if dining.WantsSauce && world.Sauce.Portions > 0 {
+	if student.Student.WantsSauce && world.Sauce.Portions > 0 {
 		student.RetrySauce = !joinSauceQueue(world, student)
 	}
 	if student.Target != agents.TargetSauce {

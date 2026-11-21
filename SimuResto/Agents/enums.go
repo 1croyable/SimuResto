@@ -7,6 +7,15 @@ const (
 	Cashier Role = "cashier"
 )
 
+type StudentDecisionType int
+
+const (
+	DecideStarters StudentDecisionType = iota + 1
+	DecideMainCourse
+	DecideLeaveQueue
+	DecideDiningTime
+)
+
 type StudentStatus string
 
 const (

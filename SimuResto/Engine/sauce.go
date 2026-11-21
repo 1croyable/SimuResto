@@ -13,7 +13,11 @@ func sauceQueuePosition(world *environment.Environment, index int) agents.Point 
 	region := world.WaterAndSauceRegion
 	entrance := world.Dining.Point(world.Dining.SauceEntrance)
 	head := agents.Point{X: float64(region.X + region.Width/2), Y: entrance.Y}
-	spacing := min(world.Settings.QueueSpacing, (entrance.X-head.X)/float64(environment.SauceCapacity-1))
+	capacity := world.Sauce.Queue.Capacity()
+	if capacity == 1 {
+		return head
+	}
+	spacing := min(world.Settings.QueueSpacing, (entrance.X-head.X)/float64(capacity-1))
 	return agents.Point{X: head.X + float64(index)*spacing, Y: head.Y}
 }
 

@@ -228,8 +228,8 @@ func New(settings Settings) *Environment {
 	world.InitCounters()
 
 	world.Queue, _ = model.NewQueue(settings.StudentCount)
-	world.Sauce.Queue, _ = model.NewQueue(SauceCapacity)
-	world.Sauce.Portions = SaucePortions
+	world.Sauce.Queue, _ = model.NewQueue(settings.SauceCapacity)
+	world.Sauce.Portions = settings.SaucePortions
 
 	world.StudentStates = make([]agents.StudentState, 0, settings.StudentCount)
 
