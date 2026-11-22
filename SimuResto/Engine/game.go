@@ -26,7 +26,9 @@ func NewGame(world *environment.Environment) *Game {
 		panic(err)
 	}
 
-	g.snapshot = buildSnapshot(world, false, Snapshot{})
+	g.engine.dining = newDiningLayout(world)
+	world.SeatOwners = make([]int, len(g.engine.dining.Seats))
+	g.snapshot = buildSnapshot(world, &g.engine.dining, false, Snapshot{})
 
 	return g
 }
@@ -66,14 +68,14 @@ func (g *Game) Step(dt time.Duration) {
 	// advance student state
 	for studentIndex := range world.StudentStates {
 		student := &world.StudentStates[studentIndex]
-		advanceStudentOutsideQueue(world, student, dt)
+		engine.advanceStudentOutsideQueue(world, student, dt)
 	}
 
 	cookRestocking := engine.advanceRestocking(world, dt)
 
 	g.engine.advanceQueue(world, dt, cookRestocking)
 
-	g.snapshot = buildSnapshot(g.World, g.done, g.snapshot)
+	g.snapshot = buildSnapshot(world, &engine.dining, g.done, g.snapshot)
 }
 
 func (g *Game) finish(err error) (bool, error) {
@@ -85,7 +87,7 @@ func (g *Game) finish(err error) (bool, error) {
 	g.err = err
 	g.engine.closeAgents()
 
-	g.snapshot = buildSnapshot(g.World, true, g.snapshot)
+	g.snapshot = buildSnapshot(g.World, &g.engine.dining, true, g.snapshot)
 	return true, err
 }
 

@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const saucePreferenceProbability = 0.50 // how likely are students want sauce?
+
 // StudentGenerator creates one student's attributes at the moment of arrival.
 type StudentGenerator struct {
 	rng          *rand.Rand
@@ -31,5 +33,6 @@ func (g *StudentGenerator) Generate(id int, arrivalTime time.Duration) StudentDa
 		ColorWeight:   g.rng.Float64(),
 		TasteWeight:   g.rng.Float64(),
 		SatietyWeight: g.rng.Float64(),
+		WantsSauce:    g.rng.Float64() < saucePreferenceProbability,
 	}
 }

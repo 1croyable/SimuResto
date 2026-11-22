@@ -14,6 +14,7 @@ import (
 const (
 	DefaultCashiers = 2
 	MaxCashiers     = 2
+	SaucePickupTime = 6 * time.Second
 )
 
 type Settings struct {
@@ -38,9 +39,14 @@ type Settings struct {
 	RestockDuration time.Duration
 
 	PaymentTime time.Duration
-	DiningTime  time.Duration
 
 	ChoiceTemperature float64 // food selection
+
+	// Dining and sauce station
+	MinDiningTime time.Duration
+	MaxDiningTime time.Duration
+	SaucePortions int
+	SauceCapacity int // length of queue of sauce
 
 	Lunch       ArrivalPeriod
 	Dinner      ArrivalPeriod
@@ -75,9 +81,12 @@ func DefaultSettings() Settings {
 		RestockDuration: 10 * time.Second,
 
 		PaymentTime: 4 * time.Second,
-		DiningTime:  5 * time.Second,
 
 		ChoiceTemperature: 0.3,
+		MinDiningTime:     8 * time.Minute,
+		MaxDiningTime:     20 * time.Minute,
+		SaucePortions:     100,
+		SauceCapacity:     8,
 
 		Lunch: ArrivalPeriod{
 			Open:            11*time.Hour + 30*time.Minute, // 11:30
@@ -304,11 +313,20 @@ func (s Settings) Validate() error {
 		duration time.Duration
 	}{
 		{"Service Time", s.ServiceTime}, {"Restock Duration", s.RestockDuration},
-		{"Payment Time", s.PaymentTime}, {"Dining Time", s.DiningTime},
+		{"Payment Time", s.PaymentTime}, {"Min Dining Time", s.MinDiningTime},
 	} {
 		if err := positive(item.name, item.duration); err != nil {
 			return err
 		}
+	}
+	if s.MaxDiningTime < s.MinDiningTime {
+		return fmt.Errorf("Max Dining Time must be at least Min Dining Time")
+	}
+	if s.SaucePortions < 0 {
+		return fmt.Errorf("Sauce Portions must be non-negative")
+	}
+	if s.SauceCapacity <= 0 {
+		return fmt.Errorf("Sauce Capacity must be positive")
 	}
 	if s.ChoiceTemperature < 0 || math.IsNaN(s.ChoiceTemperature) || math.IsInf(s.ChoiceTemperature, 0) {
 		return fmt.Errorf("Choice Temperature must be a non-negative finite number")

@@ -11,7 +11,6 @@ import (
 	environment "simuresto/SimuResto/Environment"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
@@ -125,91 +124,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Read the cached snapshot from Engine.
 	snapshot := g.Simulation.Snapshot()
-	layout := snapshot.Layout
-
-	roadColor := color.RGBA{R: 96, G: 96, B: 96, A: 255}
-	foodColor := color.RGBA{R: 224, G: 224, B: 224, A: 255}
-	starterColor := color.RGBA{R: 180, G: 220, B: 180, A: 255}
-
-	// Starter counters
-	for _, region := range layout.StarterRegions {
-		vector.FillRect(screen, region.X, region.Y, region.Width, region.Height, starterColor, false)
-	}
-
-	// Main course counter
-	vector.FillRect(screen, layout.MainRegion.X, layout.MainRegion.Y, layout.MainRegion.Width, layout.MainRegion.Height, foodColor, false)
-
-	// Cashier counter
-	vector.FillRect(screen, layout.Cashier1Region.X, layout.Cashier1Region.Y, layout.Cashier1Region.Width, layout.Cashier1Region.Height, foodColor, false)
-
-	if snapshot.Settings.Cashiers >= 2 {
-		vector.FillRect(screen, layout.Cashier2Region.X, layout.Cashier2Region.Y, layout.Cashier2Region.Width, layout.Cashier2Region.Height, foodColor, false)
-	}
-
-	// Dining areas
-	for _, area := range layout.DiningAreas {
-		region := area.Region
-		vector.FillRect(screen, region.X, region.Y, region.Width, region.Height, color.RGBA{R: 224, G: 234, B: 228, A: 255}, false)
-	}
-
-	// Waste area
-	vector.FillRect(screen, layout.WasteRegion.X, layout.WasteRegion.Y, layout.WasteRegion.Width, layout.WasteRegion.Height, color.RGBA{R: 237, G: 225, B: 210, A: 255}, false)
-
-	// Roads
-	for _, road := range layout.Roads {
-		vector.FillRect(screen, road.X, road.Y, road.Width, road.Height, roadColor, false)
-	}
-
-	if snapshot.Settings.Cashiers >= 2 {
-		points := append([]agents.Point(nil), layout.Checkout2Route...)
-		points = append(points, layout.Cashier2ExitRoute...)
-
-		const roadWidth float32 = 40
-
-		for i := 1; i < len(points); i++ {
-			from := points[i-1]
-			to := points[i]
-
-			vector.StrokeLine(
-				screen,
-				float32(from.X), float32(from.Y),
-				float32(to.X), float32(to.Y),
-				roadWidth,
-				roadColor,
-				true,
-			)
-		}
-
-		for i := 1; i < len(points)-1; i++ {
-			p := points[i]
-
-			vector.FillCircle(
-				screen,
-				float32(p.X),
-				float32(p.Y),
-				roadWidth/2,
-				roadColor,
-				true,
-			)
-		}
-	}
-
-	ebitenutil.DebugPrintAt(
-		screen, "Exit >", environment.Width-58, 512,
-	)
-
-	// Staff
-	for _, worker := range snapshot.Staff {
-		fill := color.RGBA{R: 225, G: 140, B: 45, A: 255}
-
-		// Idle cashier is displayed in gray.
-		if worker.Staff.Role == agents.Cashier &&
-			worker.StudentID == 0 {
-			fill = color.RGBA{R: 120, G: 120, B: 120, A: 255}
-		}
-
-		vector.FillCircle(screen, float32(worker.Position.X), float32(worker.Position.Y), 15, fill, true)
-	}
+	client.DrawFloorplan(screen, snapshot)
 
 	// Students
 	for _, student := range snapshot.Students {

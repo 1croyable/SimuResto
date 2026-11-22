@@ -17,22 +17,26 @@ type StudentData struct {
 	TasteWeight   float64
 	SatietyWeight float64
 	Vegetarian    bool
+	WantsSauce    bool
 }
 
 type StudentObservation struct {
-	CanLeave       bool
-	PeopleAhead    int           // People ahead, including anyone currently being served.
-	Waiting        time.Duration // Total time spent
-	Elapsed        time.Duration // Time spent waiting during this update.
-	Dishes         []Dish
-	Temperature    float64
-	ChooseStarters bool // Request starter selection.
+	DecisionType  StudentDecisionType
+	CanLeave      bool
+	PeopleAhead   int           // People ahead, including anyone currently being served.
+	Waiting       time.Duration // Total time spent
+	Elapsed       time.Duration // Time spent waiting during this update.
+	Dishes        []Dish
+	Temperature   float64
+	MinDiningTime time.Duration
+	MaxDiningTime time.Duration
 }
 
 type StudentDecision struct {
 	Leave      bool
 	DishID     string
 	StarterIDs []string
+	DiningTime time.Duration
 }
 
 // Walk follows the route at walkingSpeed map units per second and returns the unused time.
@@ -63,30 +67,30 @@ func (studentStatus *StudentState) Walk(route []Point, walkingSpeed float64, dt 
 }
 
 func (studentStatus *StudentState) Decide(state StudentObservation) StudentDecision {
-	// choose starters
-	if state.ChooseStarters {
+	switch state.DecisionType {
+	case DecideDiningTime:
+		span := state.MaxDiningTime - state.MinDiningTime
+		return StudentDecision{
+			DiningTime: state.MinDiningTime + time.Duration(studentStatus.randomGenerator.Int63n(int64(span)+1)),
+		}
+	case DecideStarters:
 		return StudentDecision{
 			StarterIDs: studentStatus.PlanStarters(
 				state.Dishes,
 				state.Temperature,
 			),
 		}
-	}
-
-	// choose to give up
-	if state.CanLeave && state.Elapsed > 0 {
+	case DecideLeaveQueue:
+		if !state.CanLeave || state.Elapsed <= 0 {
+			return StudentDecision{}
+		}
 		probabilityPerSecond := randomness.LeaveProbability(studentStatus.Student.Patience, state.Waiting, state.PeopleAhead)
 
 		// P(leave within t seconds) = 1 - (1 - P(leave within one second))^t.
 		probabilityThisUpdate := -math.Expm1(state.Elapsed.Seconds() * math.Log1p(-probabilityPerSecond))
 
-		if studentStatus.randomGenerator.Float64() < probabilityThisUpdate {
-			return StudentDecision{Leave: true}
-		}
-	}
-
-	// choose a main course if dishes are available
-	if len(state.Dishes) > 0 {
+		return StudentDecision{Leave: studentStatus.randomGenerator.Float64() < probabilityThisUpdate}
+	case DecideMainCourse:
 		return StudentDecision{
 			DishID: studentStatus.chooseDish(state.Dishes, state.Temperature),
 		}

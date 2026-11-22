@@ -19,7 +19,11 @@ type StudentState struct {
 
 	Status            StudentStatus
 	Meal              Meal
+	DiningTime        time.Duration
 	RemainingDining   time.Duration
+	SeatID            int // Zero until a seat is assigned.
+	DiningNode        int // Node at the end of the current approach or waiting segment.
+	DiningRoute       []Point
 	CounterReleasedAt time.Duration // Simulated time when the student last left a service counter.
 
 	// PositionAlongRoute is measured from the U-shaped route's start in the direction of travel.
@@ -34,6 +38,9 @@ type StudentState struct {
 	PlannedStarterIDs []string
 
 	CashierIndex int // 0 lower cahier, 1 upper
+
+	RetrySauce           bool
+	RemainingSaucePickup time.Duration
 
 	AbandonRoute []Point
 }

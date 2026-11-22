@@ -19,6 +19,7 @@ type StudentSnapshot struct {
 	PlannedStarterIDs      []string
 	RemainingStarterPickup time.Duration
 	RemainingDining        time.Duration
+	SeatID                 int
 	CounterReleasedAt      time.Duration
 	Meal                   agents.Meal
 	IsLeaving              bool
@@ -49,31 +50,24 @@ type ZoneSnapshot struct {
 	StudentIDs []int
 }
 
-type DiningAreaSnapshot struct {
-	Name              string
-	Region            environment.Region
-	Route             []agents.Point
-	CleanupRoute      []agents.Point
-	UpperCashierRoute []agents.Point
-}
-
 type LayoutSnapshot struct {
-	Roads          []environment.Region
-	StarterRegions [2]environment.Region
-	MainRegion     environment.Region
-	DiningAreas    [3]DiningAreaSnapshot
-	WasteRegion    environment.Region
-	Route          []agents.Point
-	Starter2Route  []agents.Point
-	MainRoute      []agents.Point
+	Roads               []environment.Region
+	StarterRegions      [2]environment.Region
+	MainRegion          environment.Region
+	Tabletops           []environment.Region
+	SeatPositions       []agents.Point
+	WasteRegion         environment.Region
+	WaterAndSauceRegion environment.Region
+	Route               []agents.Point
+	Starter2Route       []agents.Point
+	MainRoute           []agents.Point
 
 	Cashier1Region environment.Region
 	Checkout1Route []agents.Point
 	ExitRoute      []agents.Point
 
-	Cashier2Region    environment.Region
-	Checkout2Route    []agents.Point
-	Cashier2ExitRoute []agents.Point
+	Cashier2Region environment.Region
+	Checkout2Route []agents.Point
 }
 
 type Metrics struct {
@@ -109,12 +103,13 @@ type Report struct {
 
 type Snapshot struct {
 	Report
-	Layout   LayoutSnapshot
-	Queue    QueueSnapshot
-	Zones    []ZoneSnapshot
-	Done     bool
-	Counters [3][]environment.CounterStock
-	Restock  environment.RestockState
+	Layout        LayoutSnapshot
+	Queue         QueueSnapshot
+	Zones         []ZoneSnapshot
+	Done          bool
+	Counters      [3][]environment.CounterStock
+	Restock       environment.RestockState
+	SaucePortions int
 }
 
 func averageCounterWait(c environment.CounterStatistics) time.Duration {
@@ -130,7 +125,7 @@ func staffUtilization(c environment.CounterStatistics, elapsed time.Duration) fl
 	return 100 * float64(c.TotalServiceTime) / float64(elapsed)
 }
 
-func buildSnapshot(world *environment.Environment, done bool, previous Snapshot) Snapshot {
+func buildSnapshot(world *environment.Environment, dining *DiningLayout, done bool, previous Snapshot) Snapshot {
 	s := Snapshot{
 		Done: done,
 		Report: Report{
@@ -143,27 +138,29 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 			OperatingPhase: world.OperatingPhase,
 		},
 		Layout: LayoutSnapshot{
-			Roads:             append([]environment.Region(nil), world.Roads...),
-			StarterRegions:    world.StarterRegions,
-			MainRegion:        world.MainRegion,
-			Cashier1Region:    world.CashierRegion,
-			WasteRegion:       world.WasteRegion,
-			Route:             append([]agents.Point(nil), world.Starter1Route...),
-			Starter2Route:     append([]agents.Point(nil), world.Starter2Route...),
-			MainRoute:         append([]agents.Point(nil), world.MainRoute...),
-			Checkout1Route:    append([]agents.Point(nil), world.Checkout1Route...),
-			ExitRoute:         append([]agents.Point(nil), world.ExitRoute...),
-			Cashier2Region:    world.Cashier2Region,
-			Checkout2Route:    append([]agents.Point(nil), world.Checkout2Route...),
-			Cashier2ExitRoute: append([]agents.Point(nil), world.Cashier2ExitRoute...),
+			Roads:               append([]environment.Region(nil), world.Roads...),
+			StarterRegions:      world.StarterRegions,
+			MainRegion:          world.MainRegion,
+			Cashier1Region:      world.CashierRegion,
+			WasteRegion:         world.WasteRegion,
+			WaterAndSauceRegion: world.WaterAndSauceRegion,
+			Route:               append([]agents.Point(nil), world.Starter1Route...),
+			Starter2Route:       append([]agents.Point(nil), world.Starter2Route...),
+			MainRoute:           append([]agents.Point(nil), world.MainRoute...),
+			Checkout1Route:      append([]agents.Point(nil), world.Checkout1Route...),
+			ExitRoute:           append([]agents.Point(nil), world.ExitRoute...),
+			Cashier2Region:      world.Cashier2Region,
+			Checkout2Route:      append([]agents.Point(nil), world.Checkout2Route...),
 		},
 	}
-	for i, area := range world.DiningAreas {
-		s.Layout.DiningAreas[i] = DiningAreaSnapshot{
-			Name: area.Name, Region: area.Region,
-			Route:             append([]agents.Point(nil), area.Route...),
-			CleanupRoute:      append([]agents.Point(nil), area.CleanupRoute...),
-			UpperCashierRoute: append([]agents.Point(nil), area.UpperCashierRoute...),
+	// Dining furniture stays fixed for the lifetime of this simulation.
+	s.Layout.Tabletops = previous.Layout.Tabletops
+	s.Layout.SeatPositions = previous.Layout.SeatPositions
+	if s.Layout.Tabletops == nil {
+		s.Layout.Tabletops = append([]environment.Region(nil), dining.Tabletops...)
+		s.Layout.SeatPositions = make([]agents.Point, len(dining.Seats))
+		for i, seat := range dining.Seats {
+			s.Layout.SeatPositions[i] = seat.Position
 		}
 	}
 	if world.Queue != nil {
@@ -192,6 +189,7 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 			PlannedStarterIDs:      append([]string(nil), student.PlannedStarterIDs...),
 			RemainingStarterPickup: student.RemainingStarterPickup,
 			RemainingDining:        student.RemainingDining,
+			SeatID:                 student.SeatID,
 			CounterReleasedAt:      student.CounterReleasedAt,
 			Meal:                   agents.Meal{Starters: append([]agents.Dish(nil), student.Meal.Starters...)},
 			IsLeaving:              len(student.AbandonRoute) > 0,
@@ -311,6 +309,7 @@ func buildSnapshot(world *environment.Environment, done bool, previous Snapshot)
 
 	s.Counters = world.Counters
 	s.Restock = world.Restock
+	s.SaucePortions = world.Sauce.Portions
 
 	for i := range s.Counters {
 		s.Counters[i] = append(
@@ -346,19 +345,9 @@ func cloneSnapshot(source Snapshot) Snapshot {
 	s.Layout.MainRoute = append([]agents.Point(nil), source.Layout.MainRoute...)
 	s.Layout.Checkout1Route = append([]agents.Point(nil), source.Layout.Checkout1Route...)
 	s.Layout.ExitRoute = append([]agents.Point(nil), source.Layout.ExitRoute...)
-	for i := range s.Layout.DiningAreas {
-		s.Layout.DiningAreas[i].Route = append([]agents.Point(nil), source.Layout.DiningAreas[i].Route...)
-		s.Layout.DiningAreas[i].CleanupRoute = append([]agents.Point(nil), source.Layout.DiningAreas[i].CleanupRoute...)
-	}
+	s.Layout.Tabletops = append([]environment.Region(nil), source.Layout.Tabletops...)
+	s.Layout.SeatPositions = append([]agents.Point(nil), source.Layout.SeatPositions...)
 	s.Layout.Checkout2Route = append([]agents.Point(nil), source.Layout.Checkout2Route...)
-	s.Layout.Cashier2ExitRoute = append([]agents.Point(nil), source.Layout.Cashier2ExitRoute...)
-
-	for i := range s.Layout.DiningAreas {
-		s.Layout.DiningAreas[i].UpperCashierRoute = append(
-			[]agents.Point(nil),
-			source.Layout.DiningAreas[i].UpperCashierRoute...,
-		)
-	}
 
 	s.PeakOccupancy = make(map[agents.StudentTarget]int, len(source.PeakOccupancy))
 	for k, v := range source.PeakOccupancy {

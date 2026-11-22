@@ -7,12 +7,22 @@ const (
 	Cashier Role = "cashier"
 )
 
+type StudentDecisionType int
+
+const (
+	DecideStarters StudentDecisionType = iota + 1
+	DecideMainCourse
+	DecideLeaveQueue
+	DecideDiningTime
+)
+
 type StudentStatus string
 
 const (
 	Scheduled         StudentStatus = "scheduled"
 	WaitingForFood    StudentStatus = "waiting for food"
 	WaitingForPayment StudentStatus = "waiting for payment"
+	WaitingForSauce   StudentStatus = "waiting for sauce"
 
 	Abandoned StudentStatus = "abandoned"
 
@@ -30,7 +40,9 @@ const (
 	TargetStarter2 StudentTarget = "starter2"
 	TargetMain     StudentTarget = "main"
 	TargetCashier  StudentTarget = "cashier"
+	TargetSauce    StudentTarget = "sauce"
 	TargetDining   StudentTarget = "dining"
+	TargetSeatWait StudentTarget = "waiting for seat"
 	TargetTrash    StudentTarget = "trash"
 	TargetExit     StudentTarget = "exit"
 )

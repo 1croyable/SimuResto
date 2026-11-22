@@ -34,8 +34,7 @@ func (engine *engine) advanceQueue(world *environment.Environment, dt time.Durat
 		return
 	}
 
-	// The common FIFO line ends at the checkout fork, not at either cashier.
-	// Checkout2Route[0] is the fork point (e.g. 540, 520).
+	// The common FIFO line ends at the first point of the upper checkout branch.
 	if len(world.Checkout2Route) == 0 {
 		return
 	}
@@ -295,9 +294,9 @@ func (engine *engine) advanceTowardCounter(
 		decision := engine.requestStudentDecision(
 			student,
 			agents.StudentObservation{
-				ChooseStarters: true,
-				Dishes:         world.Menu,
-				Temperature:    world.Settings.ChoiceTemperature,
+				DecisionType: agents.DecideStarters,
+				Dishes:       world.Menu,
+				Temperature:  world.Settings.ChoiceTemperature,
 			},
 		)
 
@@ -341,8 +340,9 @@ func (engine *engine) advanceTowardCounter(
 			}
 			if len(dishes) > 0 {
 				choice := engine.requestStudentDecision(student, agents.StudentObservation{
-					Dishes:      dishes,
-					Temperature: world.Settings.ChoiceTemperature,
+					DecisionType: agents.DecideMainCourse,
+					Dishes:       dishes,
+					Temperature:  world.Settings.ChoiceTemperature,
 				})
 				student.OrderedDishID = choice.DishID
 			}
@@ -378,10 +378,11 @@ func (engine *engine) advanceTowardCounter(
 	decision := engine.requestStudentDecision(
 		student,
 		agents.StudentObservation{
-			CanLeave:    student.Target != agents.TargetCashier,
-			PeopleAhead: peopleAhead,
-			Waiting:     student.QueueWait,
-			Elapsed:     waitingTime,
+			DecisionType: agents.DecideLeaveQueue,
+			CanLeave:     student.Target != agents.TargetCashier,
+			PeopleAhead:  peopleAhead,
+			Waiting:      student.QueueWait,
+			Elapsed:      waitingTime,
 		},
 	)
 
@@ -597,13 +598,22 @@ func (engine *engine) advancePayment(
 		0,
 	)
 
-	student.Status = agents.Walking
-	student.Target = agents.TargetDining
-	student.NextWaypoint = 0
-
 	world.Queue.Remove(id)
+	dining := engine.requestStudentDecision(student, agents.StudentObservation{
+		DecisionType:  agents.DecideDiningTime,
+		MinDiningTime: world.Settings.MinDiningTime,
+		MaxDiningTime: world.Settings.MaxDiningTime,
+	})
+	student.DiningTime = dining.DiningTime
+	student.RemainingDining = dining.DiningTime
+	if student.Student.WantsSauce && world.Sauce.Portions > 0 {
+		student.RetrySauce = !engine.joinSauceQueue(world, student)
+	}
+	if student.Target != agents.TargetSauce {
+		engine.requestSeat(world, student, engine.dining.CheckoutNodes[cashierIndex], nil)
+	}
 
-	advanceStudentOutsideQueue(world, student, *remainingTime)
+	engine.advanceStudentOutsideQueue(world, student, *remainingTime)
 	*remainingTime = 0
 
 	return true
@@ -655,7 +665,7 @@ func restoreReservedStarters(_ *environment.Environment, student *agents.Student
 	student.PlannedStarterIDs = nil
 }
 
-func advanceStudentOutsideQueue(world *environment.Environment, student *agents.StudentState, dt time.Duration) {
+func (e *engine) advanceStudentOutsideQueue(world *environment.Environment, student *agents.StudentState, dt time.Duration) {
 	// if this student has given up
 	if student.Status == agents.Abandoned && len(student.AbandonRoute) > 0 {
 
@@ -668,34 +678,38 @@ func advanceStudentOutsideQueue(world *environment.Environment, student *agents.
 		return
 	}
 
-	diningAreaIndex := (student.Student.ID - 1) % len(world.DiningAreas)
-	diningArea := world.DiningAreas[diningAreaIndex]
 	remainingTime := dt
 
 	for remainingTime > 0 {
+		if student.Target == agents.TargetSauce {
+			remainingTime = e.advanceSaucePickup(world, student, remainingTime)
+			continue
+		}
 		switch student.Status {
 		case agents.Walking:
 			switch student.Target {
-			case agents.TargetDining:
-				diningRoute := diningArea.Route
-				if student.CashierIndex == 1 {
-					// Continue forward from the upper cashier, without returning
-					// to the lower checkout road.
-					diningRoute = append([]agents.Point(nil), world.Cashier2ExitRoute...)
-					diningRoute = append(diningRoute, diningArea.UpperCashierRoute...)
+			case agents.TargetSeatWait:
+				remainingTime = student.Walk(student.DiningRoute, world.Settings.WalkingSpeed, remainingTime)
+				if student.NextWaypoint < len(student.DiningRoute) {
+					return
 				}
-				remainingTime = student.Walk(diningRoute, world.Settings.WalkingSpeed, remainingTime)
-				if student.NextWaypoint < len(diningRoute) {
+				student.DiningNode = e.dining.NextWaitingNode(student.DiningNode)
+				student.DiningRoute = append(student.DiningRoute[:0], e.dining.Point(student.DiningNode))
+				student.NextWaypoint = 0
+			case agents.TargetDining:
+				remainingTime = student.Walk(student.DiningRoute, world.Settings.WalkingSpeed, remainingTime)
+				if student.NextWaypoint < len(student.DiningRoute) {
 					return
 				}
 				student.Status = agents.Dining
-				student.RemainingDining = world.Settings.DiningTime
+				student.DiningRoute = nil
 
 			case agents.TargetTrash:
-				remainingTime = student.Walk(diningArea.CleanupRoute, world.Settings.WalkingSpeed, remainingTime)
-				if student.NextWaypoint < len(diningArea.CleanupRoute) {
+				remainingTime = student.Walk(student.DiningRoute, world.Settings.WalkingSpeed, remainingTime)
+				if student.NextWaypoint < len(student.DiningRoute) {
 					return
 				}
+				student.DiningRoute = nil
 				student.Target = agents.TargetExit
 				student.NextWaypoint = 0
 
@@ -711,15 +725,21 @@ func advanceStudentOutsideQueue(world *environment.Environment, student *agents.
 			}
 
 		case agents.Dining:
+			if student.RemainingDining <= student.DiningTime/2 || world.Sauce.Portions == 0 {
+				student.RetrySauce = false
+			}
+			if student.RetrySauce &&
+				world.Sauce.Queue.Len() <= world.Sauce.Queue.Capacity()/2 && e.joinSauceQueue(world, student) {
+				student.RetrySauce = false
+				continue
+			}
 			timeSpentEating := min(remainingTime, student.RemainingDining)
 			remainingTime -= timeSpentEating
 			student.RemainingDining -= timeSpentEating
 			if student.RemainingDining > 0 {
 				return
 			}
-			student.Status = agents.Walking
-			student.Target = agents.TargetTrash
-			student.NextWaypoint = 0
+			e.leaveSeatForTrayReturn(world, student)
 
 		default:
 			return
