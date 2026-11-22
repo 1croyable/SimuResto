@@ -1,9 +1,6 @@
 package agents
 
-import (
-	"math/rand"
-	"time"
-)
+import "time"
 
 type Point struct {
 	X, Y float64
@@ -31,7 +28,6 @@ type StudentState struct {
 	PositionAlongRoute float64
 	QueueWait          time.Duration
 	OrderedDishID      string
-	randomGenerator    *rand.Rand
 
 	RemainingStarterPickup time.Duration // collecting starters may take several simulation updates
 

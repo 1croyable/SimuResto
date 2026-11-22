@@ -1,7 +1,7 @@
 package agents
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"time"
 )
 
@@ -9,19 +9,17 @@ const saucePreferenceProbability = 0.50 // how likely are students want sauce?
 
 // StudentGenerator creates one student's attributes at the moment of arrival.
 type StudentGenerator struct {
-	rng          *rand.Rand
 	basePatience time.Duration
 }
 
-func NewStudentGenerator(seed int64, basePatience time.Duration) *StudentGenerator {
+func NewStudentGenerator(basePatience time.Duration) *StudentGenerator {
 	return &StudentGenerator{
-		rng:          rand.New(rand.NewSource(seed ^ 0x4e157cd2)),
 		basePatience: basePatience,
 	}
 }
 
 func (g *StudentGenerator) Generate(id int, arrivalTime time.Duration) StudentData {
-	patienceScale := 0.4 + 1.2*g.rng.Float64()
+	patienceScale := 0.4 + 1.2*rand.Float64()
 
 	return StudentData{
 		ID:          id,
@@ -29,10 +27,10 @@ func (g *StudentGenerator) Generate(id int, arrivalTime time.Duration) StudentDa
 
 		Patience: time.Duration(float64(g.basePatience) * patienceScale),
 
-		Vegetarian:    g.rng.Float64() < 0.35,
-		ColorWeight:   g.rng.Float64(),
-		TasteWeight:   g.rng.Float64(),
-		SatietyWeight: g.rng.Float64(),
-		WantsSauce:    g.rng.Float64() < saucePreferenceProbability,
+		Vegetarian:    rand.Float64() < 0.35,
+		ColorWeight:   rand.Float64(),
+		TasteWeight:   rand.Float64(),
+		SatietyWeight: rand.Float64(),
+		WantsSauce:    rand.Float64() < saucePreferenceProbability,
 	}
 }

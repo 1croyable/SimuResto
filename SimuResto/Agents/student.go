@@ -2,7 +2,7 @@ package agents
 
 import (
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	randomness "simuresto/SimuResto/Agents/Randomness"
 	"time"
 )
@@ -77,7 +77,7 @@ func (studentStatus *StudentState) Decide(state StudentObservation) StudentDecis
 	case DecideDiningTime:
 		span := state.MaxDiningTime - state.MinDiningTime
 		return StudentDecision{
-			DiningTime: state.MinDiningTime + time.Duration(studentStatus.randomGenerator.Int63n(int64(span)+1)),
+			DiningTime: state.MinDiningTime + time.Duration(rand.Int64N(int64(span)+1)),
 		}
 	case DecideStarters:
 		return StudentDecision{
@@ -95,7 +95,7 @@ func (studentStatus *StudentState) Decide(state StudentObservation) StudentDecis
 		// P(leave within t seconds) = 1 - (1 - P(leave within one second))^t.
 		probabilityThisUpdate := -math.Expm1(state.Elapsed.Seconds() * math.Log1p(-probabilityPerSecond))
 
-		return StudentDecision{Leave: studentStatus.randomGenerator.Float64() < probabilityThisUpdate}
+		return StudentDecision{Leave: rand.Float64() < probabilityThisUpdate}
 	case DecideMainCourse:
 		return StudentDecision{
 			DishID: studentStatus.chooseDish(state.Dishes, state.Temperature),
@@ -105,13 +105,11 @@ func (studentStatus *StudentState) Decide(state StudentObservation) StudentDecis
 	return StudentDecision{}
 }
 
-func NewStudentState(student StudentData, seed int64) StudentState {
-	studentSeed := int64(uint64(seed) ^ (uint64(student.ID) * 0x9e3779b97f4a7c15))
+func NewStudentState(student StudentData) StudentState {
 	return StudentState{
-		Student:         student,
-		Status:          Scheduled,
-		randomGenerator: rand.New(rand.NewSource(studentSeed)),
-		CashierIndex:    -1,
+		Student:      student,
+		Status:       Scheduled,
+		CashierIndex: -1,
 	}
 }
 
@@ -154,11 +152,7 @@ func (studentStatus *StudentState) PlanStarters(menu []Dish, temperature float64
 			break
 		}
 
-		selected := randomness.SoftmaxChoice(
-			scores,
-			temperature,
-			studentStatus.randomGenerator,
-		)
+		selected := randomness.SoftmaxChoice(scores, temperature)
 		if selected < 0 {
 			break
 		}

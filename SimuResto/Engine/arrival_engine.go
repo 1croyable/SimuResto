@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"slices"
 	"time"
 
@@ -50,13 +50,12 @@ func (e *engine) initArrivals(world *environment.Environment) error {
 	windows := [2]randomness.ArrivalWindow{
 		makeWindow(s.Lunch, s.StudentCount-dinner), makeWindow(s.Dinner, dinner),
 	}
-	process, err := randomness.NewArrivalProcess(windows, s.StartTime, s.Seed)
+	process, err := randomness.NewArrivalProcess(windows, s.StartTime)
 	if err != nil {
 		return err
 	}
 	e.arrivals = process
-	e.generator = agents.NewStudentGenerator(s.Seed, s.BasePatience)
-	e.companionRandom = rand.New(rand.NewSource(s.Seed))
+	e.generator = agents.NewStudentGenerator(s.BasePatience)
 	return nil
 }
 
@@ -102,20 +101,20 @@ func (e *engine) nextCompanion(now time.Duration) agents.Companion {
 
 func (e *engine) planCompanions(student *agents.StudentState, now, closing time.Duration) {
 	if now >= closing || len(e.companionArrivals) >= maxPendingCompanionLeaders ||
-		e.companionRandom.Float64() >= companionLeaderProbability {
+		rand.Float64() >= companionLeaderProbability {
 		return
 	}
 	group := companionArrival{
 		due:       now,
 		expires:   closing,
 		leaderID:  student.Student.ID,
-		remaining: 1 + e.companionRandom.Intn(maxCompanions),
+		remaining: 1 + rand.IntN(maxCompanions),
 	}
-	if e.companionRandom.Intn(2) == 0 {
+	if rand.IntN(2) == 0 {
 		student.Student.Companion.Role = agents.TogetherLeader
 	} else {
 		student.Student.Companion.Role = agents.QueueJumpLeader
-		delay := minCompanionDelay + time.Duration(e.companionRandom.Int63n(int64(maxCompanionDelay-minCompanionDelay)+1))
+		delay := minCompanionDelay + time.Duration(rand.Int64N(int64(maxCompanionDelay-minCompanionDelay)+1))
 		group.due += delay
 	}
 	index := len(e.companionArrivals)
@@ -129,7 +128,7 @@ func (e *engine) spawnStudent(world *environment.Environment, companion agents.C
 	id := len(world.StudentStates) + 1
 	data := e.generator.Generate(id, world.TimePassed)
 	data.Companion = companion
-	world.StudentStates = append(world.StudentStates, agents.NewStudentState(data, world.Settings.Seed))
+	world.StudentStates = append(world.StudentStates, agents.NewStudentState(data))
 	student := &world.StudentStates[len(world.StudentStates)-1]
 	world.StudentsByID[id] = student
 	return student
