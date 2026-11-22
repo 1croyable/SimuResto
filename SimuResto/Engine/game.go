@@ -28,7 +28,7 @@ func NewGame(world *environment.Environment) *Game {
 
 	g.engine.dining = newDiningLayout(world)
 	world.SeatOwners = make([]int, len(g.engine.dining.Seats))
-	g.snapshot = buildSnapshot(world, &g.engine.dining, false, Snapshot{})
+	g.snapshot = g.engine.buildSnapshot(world, false, Snapshot{})
 
 	return g
 }
@@ -75,7 +75,7 @@ func (g *Game) Step(dt time.Duration) {
 
 	g.engine.advanceQueue(world, dt, cookRestocking)
 
-	g.snapshot = buildSnapshot(world, &engine.dining, g.done, g.snapshot)
+	g.snapshot = engine.buildSnapshot(world, g.done, g.snapshot)
 }
 
 func (g *Game) finish(err error) (bool, error) {
@@ -87,7 +87,7 @@ func (g *Game) finish(err error) (bool, error) {
 	g.err = err
 	g.engine.closeAgents()
 
-	g.snapshot = buildSnapshot(g.World, &g.engine.dining, true, g.snapshot)
+	g.snapshot = g.engine.buildSnapshot(g.World, true, g.snapshot)
 	return true, err
 }
 

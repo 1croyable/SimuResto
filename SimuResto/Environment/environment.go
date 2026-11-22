@@ -10,6 +10,9 @@ import (
 const (
 	Width  = 1200
 	Height = 700
+
+	Starter1DoorIndex           = 2
+	Starter1QueueJumpLimitIndex = 3
 )
 
 type Region struct {
@@ -103,8 +106,8 @@ func New(settings Settings) *Environment {
 		Starter1Route: []agents.Point{
 			{X: Width - 20, Y: 90},
 			{X: 65, Y: 90},
-			{X: 65, Y: 140}, // door
-			{X: 65, Y: lowerPickupY},
+			{X: 65, Y: 140},          // door
+			{X: 65, Y: lowerPickupY}, // queue-jump limit
 			{X: 175, Y: lowerPickupY},
 		},
 

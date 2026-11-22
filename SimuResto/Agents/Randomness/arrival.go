@@ -67,6 +67,7 @@ func NewArrivalProcess(windows [2]ArrivalWindow, start time.Duration, seed int64
 	return p, nil
 }
 
+// how many people will arrive next step? -> lunch[0] dinner[1]
 func (p *ArrivalProcess) Next(from, to time.Duration) [2]int {
 	var counts [2]int
 	if to <= from {

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"math/rand"
 	agents "simuresto/SimuResto/Agents"
 	randomness "simuresto/SimuResto/Agents/Randomness"
 	environment "simuresto/SimuResto/Environment"
@@ -17,9 +18,12 @@ type engine struct {
 	agentWG   sync.WaitGroup
 	closeOnce sync.Once
 
-	arrivals  *randomness.ArrivalProcess
-	generator *agents.StudentGenerator
-	dining    DiningLayout
+	arrivals           *randomness.ArrivalProcess
+	generator          *agents.StudentGenerator
+	dining             DiningLayout
+	companionRandom    *rand.Rand
+	companionArrivals  []companionArrival
+	sideLaneCompanions []*agents.StudentState //cut in line
 }
 
 func newEngine() *engine {

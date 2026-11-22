@@ -147,14 +147,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			fill = color.RGBA{R: 225, G: 140, B: 45, A: 255}
 		}
 
-		vector.FillCircle(screen, float32(student.Position.X), float32(student.Position.Y), 6, fill, true)
+		x, y := float32(student.Position.X), float32(student.Position.Y)
+		vector.FillCircle(screen, x, y, 6, fill, true)
 
 		// Show a green indicator when carrying a main course.
 		isWalkingToExit := student.Status == agents.Walking &&
 			student.Target == agents.TargetExit
 
 		if student.Meal.Main != nil && !isWalkingToExit {
-			vector.FillCircle(screen, float32(student.Position.X)+8, float32(student.Position.Y), 3, color.RGBA{R: 90, G: 190, B: 90, A: 255}, true)
+			vector.FillCircle(screen, x+8, y, 3, color.RGBA{R: 90, G: 190, B: 90, A: 255}, true)
 		}
 	}
 

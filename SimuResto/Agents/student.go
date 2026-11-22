@@ -7,10 +7,16 @@ import (
 	"time"
 )
 
+type Companion struct {
+	Role     CompanionRole
+	LeaderID int // Set only for invited students.
+}
+
 type StudentData struct {
 	ID          int
 	ArrivalTime time.Duration
 	Patience    time.Duration
+	Companion   Companion
 
 	// preference of the dishes
 	ColorWeight   float64
