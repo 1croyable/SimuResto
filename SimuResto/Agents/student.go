@@ -2,21 +2,54 @@ package agents
 
 import (
 	"math"
+	"math/rand/v2"
+	randomness "simuresto/SimuResto/Agents/Randomness"
 	"time"
 )
 
+type Companion struct {
+	Role     CompanionRole
+	LeaderID int // Set only for invited students.
+}
+
 type StudentData struct {
-	ID             int
-	ArrivalTime    time.Duration
-	StartersWanted int
-	DessertsWanted int
+	ID          int
+	ArrivalTime time.Duration
+	Patience    time.Duration
+	Companion   Companion
+
+	// preference of the dishes
+	ColorWeight   float64
+	TasteWeight   float64
+	SatietyWeight float64
+	Vegetarian    bool
+	WantsSauce    bool
+}
+
+type StudentObservation struct {
+	DecisionType  StudentDecisionType
+	CanLeave      bool
+	PeopleAhead   int           // People ahead, including anyone currently being served.
+	Waiting       time.Duration // Total time spent
+	Elapsed       time.Duration // Time spent waiting during this update.
+	Dishes        []Dish
+	Temperature   float64
+	MinDiningTime time.Duration
+	MaxDiningTime time.Duration
+}
+
+type StudentDecision struct {
+	Leave      bool
+	DishID     string
+	StarterIDs []string
+	DiningTime time.Duration
 }
 
 // Walk follows the route at walkingSpeed map units per second and returns the unused time.
-func (student *StudentState) Walk(route []Point, walkingSpeed float64, dt time.Duration) time.Duration {
-	for student.NextWaypoint < len(route) {
-		target := route[student.NextWaypoint]
-		dx, dy := target.X-student.Position.X, target.Y-student.Position.Y
+func (studentStatus *StudentState) Walk(route []Point, walkingSpeed float64, dt time.Duration) time.Duration {
+	for studentStatus.NextWaypoint < len(route) {
+		target := route[studentStatus.NextWaypoint]
+		dx, dy := target.X-studentStatus.Position.X, target.Y-studentStatus.Position.Y
 		distance := math.Hypot(dx, dy)
 		// total time needed to reach the next route point
 		travelTime := time.Duration(math.Round(distance / walkingSpeed * float64(time.Second)))
@@ -26,15 +59,108 @@ func (student *StudentState) Walk(route []Point, walkingSpeed float64, dt time.D
 			fraction := walkingSpeed * dt.Seconds() / distance
 
 			// Move a part of the way toward the next point
-			student.Position.X += dx * fraction
-			student.Position.Y += dy * fraction
+			studentStatus.Position.X += dx * fraction
+			studentStatus.Position.Y += dy * fraction
 			return 0
 		}
 
-		student.Position = target
-		student.NextWaypoint++
+		studentStatus.Position = target
+		studentStatus.NextWaypoint++
 		dt -= travelTime
 	}
 
 	return dt
+}
+
+func (studentStatus *StudentState) Decide(state StudentObservation) StudentDecision {
+	switch state.DecisionType {
+	case DecideDiningTime:
+		span := state.MaxDiningTime - state.MinDiningTime
+		return StudentDecision{
+			DiningTime: state.MinDiningTime + time.Duration(rand.Int64N(int64(span)+1)),
+		}
+	case DecideStarters:
+		return StudentDecision{
+			StarterIDs: studentStatus.PlanStarters(
+				state.Dishes,
+				state.Temperature,
+			),
+		}
+	case DecideLeaveQueue:
+		if !state.CanLeave || state.Elapsed <= 0 {
+			return StudentDecision{}
+		}
+		probabilityPerSecond := randomness.LeaveProbability(studentStatus.Student.Patience, state.Waiting, state.PeopleAhead)
+
+		// P(leave within t seconds) = 1 - (1 - P(leave within one second))^t.
+		probabilityThisUpdate := -math.Expm1(state.Elapsed.Seconds() * math.Log1p(-probabilityPerSecond))
+
+		return StudentDecision{Leave: rand.Float64() < probabilityThisUpdate}
+	case DecideMainCourse:
+		return StudentDecision{
+			DishID: studentStatus.chooseDish(state.Dishes, state.Temperature),
+		}
+	}
+
+	return StudentDecision{}
+}
+
+func NewStudentState(student StudentData) StudentState {
+	return StudentState{
+		Student:      student,
+		Status:       Scheduled,
+		CashierIndex: -1,
+	}
+}
+
+func (studentStatus *StudentState) PlanStarters(menu []Dish, temperature float64) []string {
+	planned := make([]string, 0, 2)
+
+	portions := make([]int, len(menu))
+	for i, dish := range menu {
+		portions[i] = dish.Portions
+	}
+
+	colorWeight := studentStatus.Student.ColorWeight
+	tasteWeight := studentStatus.Student.TasteWeight
+	satietyWeight := studentStatus.Student.SatietyWeight
+
+	for len(planned) < 2 {
+		var candidates []int
+		var scores []float64
+
+		for i, dish := range menu {
+			if dish.Course != Starter {
+				continue
+			}
+
+			score := StarterScore(
+				dish, colorWeight, tasteWeight,
+				satietyWeight, portions[i],
+			)
+
+			// Reduce repeated selection score by 40%.
+			if len(planned) > 0 && dish.ID == planned[0] {
+				score *= 0.6
+			}
+
+			candidates = append(candidates, i)
+			scores = append(scores, score)
+		}
+
+		if len(candidates) == 0 {
+			break
+		}
+
+		selected := randomness.SoftmaxChoice(scores, temperature)
+		if selected < 0 {
+			break
+		}
+
+		index := candidates[selected]
+		planned = append(planned, menu[index].ID)
+		portions[index]--
+	}
+
+	return planned
 }

@@ -1,16 +1,60 @@
 package agents
 
-type Course string
-
-const (
-	Starter Course = "starter"
-	Main    Course = "main"
-	Dessert Course = "dessert"
-)
-
 type Role string
 
 const (
 	Server  Role = "server"
 	Cashier Role = "cashier"
+)
+
+type StudentDecisionType int
+
+const (
+	DecideStarters StudentDecisionType = iota + 1
+	DecideMainCourse
+	DecideLeaveQueue
+	DecideDiningTime
+)
+
+type StudentStatus string
+
+const (
+	Scheduled         StudentStatus = "scheduled"
+	WaitingForFood    StudentStatus = "waiting for food"
+	WaitingForPayment StudentStatus = "waiting for payment"
+	WaitingForSauce   StudentStatus = "waiting for sauce"
+
+	Abandoned StudentStatus = "abandoned"
+
+	Walking  StudentStatus = "walking"
+	Serving  StudentStatus = "receiving a dish"
+	Paying   StudentStatus = "paying"
+	Dining   StudentStatus = "dining"
+	Finished StudentStatus = "finished"
+)
+
+type CompanionRole int
+
+const (
+	NoCompanion CompanionRole = iota
+	TogetherLeader
+	QueueJumpLeader
+	InvitedCompanion
+)
+
+type StudentTarget string
+
+const (
+	TargetStarter1      StudentTarget = "starter1"
+	TargetStarter2      StudentTarget = "starter2"
+	TargetMain          StudentTarget = "main"
+	TargetCashier       StudentTarget = "cashier"
+	TargetSauce         StudentTarget = "sauce"
+	TargetDining        StudentTarget = "dining"
+	TargetSeatWait      StudentTarget = "waiting for seat"
+	TargetTrash         StudentTarget = "trash"
+	TargetExit          StudentTarget = "exit"
+	TargetJoinCompanion StudentTarget = "joining companion"
+	TargetQueueTail     StudentTarget = "returning to queue tail"
+	TargetQueueSlot     StudentTarget = "walking into queue slot"
 )
