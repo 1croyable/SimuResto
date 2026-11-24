@@ -3,7 +3,7 @@ package randomness
 import (
 	"fmt"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 )
 
@@ -23,12 +23,11 @@ type arrivalSession struct {
 }
 
 type ArrivalProcess struct {
-	rng      *rand.Rand
 	sessions [2]arrivalSession
 }
 
-func NewArrivalProcess(windows [2]ArrivalWindow, start time.Duration, seed int64) (*ArrivalProcess, error) {
-	p := &ArrivalProcess{rng: rand.New(rand.NewSource(seed))}
+func NewArrivalProcess(windows [2]ArrivalWindow, start time.Duration) (*ArrivalProcess, error) {
+	p := &ArrivalProcess{}
 	for i, w := range windows {
 		cutoff := w.Close - w.StopBeforeClose
 
@@ -60,13 +59,14 @@ func NewArrivalProcess(windows [2]ArrivalWindow, start time.Duration, seed int64
 		// If a simulation starts partway through service, skip past arrivals.
 		p.sessions[i] = arrivalSession{
 			config:           w,
-			earlyRemaining:   drawBinomial(p.rng, early, 1-earlyCDF(w, start)),
-			regularRemaining: drawBinomial(p.rng, regular, 1-regularCDF(w, start)),
+			earlyRemaining:   drawBinomial(early, 1-earlyCDF(w, start)),
+			regularRemaining: drawBinomial(regular, 1-regularCDF(w, start)),
 		}
 	}
 	return p, nil
 }
 
+// how many people will arrive next step? -> lunch[0] dinner[1]
 func (p *ArrivalProcess) Next(from, to time.Duration) [2]int {
 	var counts [2]int
 	if to <= from {
@@ -76,8 +76,8 @@ func (p *ArrivalProcess) Next(from, to time.Duration) [2]int {
 		s := &p.sessions[i]
 		a0, a1 := earlyCDF(s.config, from), earlyCDF(s.config, to)
 		b0, b1 := regularCDF(s.config, from), regularCDF(s.config, to)
-		early := drawBinomial(p.rng, s.earlyRemaining, conditionalProbability(a0, a1))
-		regular := drawBinomial(p.rng, s.regularRemaining, conditionalProbability(b0, b1))
+		early := drawBinomial(s.earlyRemaining, conditionalProbability(a0, a1))
+		regular := drawBinomial(s.regularRemaining, conditionalProbability(b0, b1))
 		s.earlyRemaining -= early
 		s.regularRemaining -= regular
 		counts[i] = early + regular
@@ -137,7 +137,7 @@ func gaussianArea(w ArrivalWindow, from, to time.Duration) float64 {
 }
 
 // Draw a binomial sample using geometric jumps; efficient for tiny tick probabilities.
-func drawBinomial(rng *rand.Rand, n int, probability float64) int {
+func drawBinomial(n int, probability float64) int {
 	if n <= 0 || probability <= 0 {
 		return 0
 	}
@@ -145,12 +145,12 @@ func drawBinomial(rng *rand.Rand, n int, probability float64) int {
 		return n
 	}
 	if probability > 0.5 {
-		return n - drawBinomial(rng, n, 1-probability)
+		return n - drawBinomial(n, 1-probability)
 	}
 	logFailure := math.Log1p(-probability)
 	seen, successes := 0, 0
 	for seen < n {
-		failures := math.Floor(math.Log1p(-rng.Float64()) / logFailure)
+		failures := math.Floor(math.Log1p(-rand.Float64()) / logFailure)
 		if failures >= float64(n-seen) {
 			break
 		}

@@ -33,16 +33,28 @@ const (
 	Finished StudentStatus = "finished"
 )
 
+type CompanionRole int
+
+const (
+	NoCompanion CompanionRole = iota
+	TogetherLeader
+	QueueJumpLeader
+	InvitedCompanion
+)
+
 type StudentTarget string
 
 const (
-	TargetStarter1 StudentTarget = "starter1"
-	TargetStarter2 StudentTarget = "starter2"
-	TargetMain     StudentTarget = "main"
-	TargetCashier  StudentTarget = "cashier"
-	TargetSauce    StudentTarget = "sauce"
-	TargetDining   StudentTarget = "dining"
-	TargetSeatWait StudentTarget = "waiting for seat"
-	TargetTrash    StudentTarget = "trash"
-	TargetExit     StudentTarget = "exit"
+	TargetStarter1      StudentTarget = "starter1"
+	TargetStarter2      StudentTarget = "starter2"
+	TargetMain          StudentTarget = "main"
+	TargetCashier       StudentTarget = "cashier"
+	TargetSauce         StudentTarget = "sauce"
+	TargetDining        StudentTarget = "dining"
+	TargetSeatWait      StudentTarget = "waiting for seat"
+	TargetTrash         StudentTarget = "trash"
+	TargetExit          StudentTarget = "exit"
+	TargetJoinCompanion StudentTarget = "joining companion"
+	TargetQueueTail     StudentTarget = "returning to queue tail"
+	TargetQueueSlot     StudentTarget = "walking into queue slot"
 )

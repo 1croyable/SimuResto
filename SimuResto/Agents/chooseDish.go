@@ -38,11 +38,7 @@ func (studentStatus *StudentState) chooseDish(dishes []Dish, temperature float64
 		)
 	}
 
-	selected := randomness.SoftmaxChoice(
-		scores,
-		temperature,
-		studentStatus.randomGenerator,
-	)
+	selected := randomness.SoftmaxChoice(scores, temperature)
 
 	if selected < 0 {
 		return ""

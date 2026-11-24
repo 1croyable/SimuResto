@@ -2,13 +2,13 @@ package randomness
 
 import (
 	"math"
-	"math/rand"
+	"math/rand/v2"
 )
 
 // temperature = 0: always choose the highest score.
 // temperature > 0: sample according to softmax probabilities.
 // A lower temperature favors higher-scoring items.
-func SoftmaxChoice(scores []float64, temperature float64, rng *rand.Rand) int {
+func SoftmaxChoice(scores []float64, temperature float64) int {
 	if len(scores) == 0 {
 		return -1
 	}
@@ -34,7 +34,7 @@ func SoftmaxChoice(scores []float64, temperature float64, rng *rand.Rand) int {
 	}
 
 	// Sample according to the probability distribution.
-	draw := rng.Float64() * total
+	draw := rand.Float64() * total
 
 	for i, weight := range weights {
 		draw -= weight

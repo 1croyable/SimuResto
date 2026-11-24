@@ -22,7 +22,6 @@ type Settings struct {
 
 	// Students
 	StudentCount int
-	Seed         int64
 	BasePatience time.Duration
 
 	// Movement and queues
@@ -67,7 +66,6 @@ func DefaultSettings() Settings {
 		StartTime: 11 * time.Hour,
 
 		StudentCount: 1000,
-		Seed:         42,
 		BasePatience: 10 * time.Minute,
 
 		QueueSpacing: 16,

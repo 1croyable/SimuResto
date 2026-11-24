@@ -17,9 +17,11 @@ type engine struct {
 	agentWG   sync.WaitGroup
 	closeOnce sync.Once
 
-	arrivals  *randomness.ArrivalProcess
-	generator *agents.StudentGenerator
-	dining    DiningLayout
+	arrivals           *randomness.ArrivalProcess
+	generator          *agents.StudentGenerator
+	dining             DiningLayout
+	companionArrivals  []companionArrival
+	sideLaneCompanions []*agents.StudentState //cut in line
 }
 
 func newEngine() *engine {

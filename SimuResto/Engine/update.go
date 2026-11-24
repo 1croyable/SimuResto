@@ -51,7 +51,7 @@ func (engine *engine) advanceQueue(world *environment.Environment, dt time.Durat
 	}
 
 	q.cookRestocking = cookRestocking
-	q.doorPosition = routeLength(world.Starter1Route[:3])
+	q.doorPosition = routeLength(world.Starter1Route[:environment.Starter1DoorIndex+1])
 
 	q.starter2End = q.starter1End + len(world.Starter2Route)
 	q.mainEnd = q.starter2End + len(world.MainRoute)
@@ -63,18 +63,24 @@ func (engine *engine) advanceQueue(world *environment.Environment, dt time.Durat
 
 	personAheadPosition := q.checkoutForkPosition + world.Settings.QueueSpacing
 	peopleAhead := 0
+	queueTimeLeft := engine.advanceCompanionWalkers(world, dt, queueJumpLimitDistance(world))
 
 	// calculate one by one from the front
 	for _, id := range world.Queue.IDs() {
 		student := world.StudentsByID[id]
 		remainingTime := min(dt, world.TimePassed-student.Student.ArrivalTime)
+		if timeLeft, ok := queueTimeLeft[id]; ok {
+			remainingTime = timeLeft
+		}
 		leftQueue := false
 
 		for remainingTime > 0 {
 			switch student.Status {
 
 			case agents.Walking, agents.WaitingForFood, agents.WaitingForPayment:
-				if student.Target == agents.TargetCashier && student.CashierIndex >= 0 {
+				if student.Target == agents.TargetQueueSlot {
+					remainingTime = walkIntoQueueSlot(world, student, remainingTime)
+				} else if student.Target == agents.TargetCashier && student.CashierIndex >= 0 {
 					leftQueue = engine.advanceAssignedCashier(world, student, id, &q, &remainingTime)
 				} else {
 					leftQueue = engine.advanceTowardCounter(world, student, id, &q, &remainingTime, personAheadPosition, peopleAhead)

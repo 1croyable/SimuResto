@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"slices"
 )
 
 // Queue : FIFO
@@ -35,6 +36,15 @@ func (q *Queue) Enqueue(id int) bool {
 		return false
 	}
 	q.ids = append(q.ids, id)
+	return true
+}
+
+func (q *Queue) InsertAfter(preID, id int) bool {
+	index := slices.Index(q.ids, preID)
+	if index < 0 || q.Len() == q.capacity {
+		return false
+	}
+	q.ids = slices.Insert(q.ids, index+1, id)
 	return true
 }
 
