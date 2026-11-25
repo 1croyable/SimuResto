@@ -15,7 +15,7 @@ import (
 
 const (
 	companionLeaderProbability = 0.1
-	maxPendingCompanionLeaders = 2
+	maxPendingQueueJumpLeaders = 2
 	maxCompanions              = 3
 	minCompanionDelay          = 20 * time.Second
 	maxCompanionDelay          = 90 * time.Second
@@ -140,8 +140,7 @@ func (e *engine) nextCompanion(now time.Duration) agents.Companion {
 }
 
 func (e *engine) planCompanions(leaderID int, now, closing, cutoff time.Duration) agents.CompanionRole {
-	if now >= closing || len(e.companionArrivals) >= maxPendingCompanionLeaders ||
-		rand.Float64() >= companionLeaderProbability {
+	if now >= closing || rand.Float64() >= companionLeaderProbability {
 		return agents.NoCompanion
 	}
 	companions := 1 + rand.IntN(maxCompanions)
@@ -153,6 +152,17 @@ func (e *engine) planCompanions(leaderID int, now, closing, cutoff time.Duration
 		})
 		return agents.TogetherLeader
 	}
+
+	pendingQueueJumpLeaders := 0
+	for _, group := range e.companionArrivals {
+		if group.leaderID != 0 && group.expires > now {
+			pendingQueueJumpLeaders++
+		}
+	}
+	if pendingQueueJumpLeaders >= maxPendingQueueJumpLeaders {
+		return agents.NoCompanion
+	}
+
 	delay := minCompanionDelay + time.Duration(rand.Int64N(int64(maxCompanionDelay-minCompanionDelay)+1))
 	group := companionArrival{
 		due:       now + delay,

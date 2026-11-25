@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"math"
 	"slices"
 
 	agents "simuresto/SimuResto/Agents"
@@ -25,7 +26,7 @@ func (e *engine) assignNextSeat(world *environment.Environment) {
 	}
 	student := world.StudentsByID[id]
 	search := e.dining.Search(student.DiningNode)
-	index := e.preferredSeat(world, search)
+	index := e.preferredSeat(world, student, search)
 	if index < 0 {
 		return
 	}
@@ -35,7 +36,14 @@ func (e *engine) assignNextSeat(world *environment.Environment) {
 	e.routeToSeat(student, search)
 }
 
-func (e *engine) preferredSeat(world *environment.Environment, search DiningSearch) int {
+func (e *engine) preferredSeat(world *environment.Environment, student *agents.StudentState, search DiningSearch) int {
+	if student.Student.Companion.Role == agents.InvitedCompanion {
+		leader := world.StudentsByID[student.Student.Companion.LeaderID]
+		if leader != nil && leader.SeatID > 0 {
+			return e.seatNearLeader(world, e.dining.Seats[leader.SeatID-1], search)
+		}
+	}
+
 	occupiedTables := make(map[int]bool)
 	for index, owner := range world.SeatOwners {
 		if owner != 0 {
@@ -60,6 +68,27 @@ func (e *engine) preferredSeat(world *environment.Environment, search DiningSear
 		}
 		if priority < bestPriority || priority == bestPriority && distance < bestDistance {
 			best, bestPriority, bestDistance = index, priority, distance
+		}
+	}
+	return best
+}
+
+func (e *engine) seatNearLeader(world *environment.Environment, leaderSeat DiningSeat, search DiningSearch) int {
+	best, bestPriority, bestWalk := -1, 2, 0
+	bestDistance := 0.0
+	for index, seat := range e.dining.Seats {
+		walk := search.Distance[seat.Node]
+		if world.SeatOwners[index] != 0 || walk < 0 {
+			continue
+		}
+		priority := 0
+		if seat.Table != leaderSeat.Table {
+			priority = 1
+		}
+		distance := math.Hypot(seat.Position.X-leaderSeat.Position.X, seat.Position.Y-leaderSeat.Position.Y)
+		if priority < bestPriority ||
+			priority == bestPriority && (distance < bestDistance || distance == bestDistance && walk < bestWalk) {
+			best, bestPriority, bestDistance, bestWalk = index, priority, distance, walk
 		}
 	}
 	return best
