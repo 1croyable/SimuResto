@@ -8,6 +8,27 @@ import (
 	environment "simuresto/SimuResto/Environment"
 )
 
+func (e *engine) prepareDining(world *environment.Environment, student *agents.StudentState) {
+	durationOwner := student
+	if student.Student.Companion.Role == agents.InvitedCompanion {
+		if leader := world.StudentsByID[student.Student.Companion.LeaderID]; leader != nil {
+			durationOwner = leader
+		}
+	}
+
+	// The first group member to pay can initialize the leader's planned duration.
+	if durationOwner.DiningTime == 0 {
+		decision := e.requestStudentDecision(durationOwner, agents.StudentObservation{
+			DecisionType:  agents.DecideDiningTime,
+			MinDiningTime: world.Settings.MinDiningTime,
+			MaxDiningTime: world.Settings.MaxDiningTime,
+		})
+		durationOwner.DiningTime = decision.DiningTime
+	}
+	student.DiningTime = durationOwner.DiningTime
+	student.RemainingDining = student.DiningTime
+}
+
 func (e *engine) requestSeat(world *environment.Environment, student *agents.StudentState, from int, approach []agents.Point) {
 	student.Status = agents.Walking
 	student.Target = agents.TargetSeatWait

@@ -605,13 +605,7 @@ func (engine *engine) advancePayment(
 	)
 
 	world.Queue.Remove(id)
-	dining := engine.requestStudentDecision(student, agents.StudentObservation{
-		DecisionType:  agents.DecideDiningTime,
-		MinDiningTime: world.Settings.MinDiningTime,
-		MaxDiningTime: world.Settings.MaxDiningTime,
-	})
-	student.DiningTime = dining.DiningTime
-	student.RemainingDining = dining.DiningTime
+	engine.prepareDining(world, student)
 	if student.Student.WantsSauce && world.Sauce.Portions > 0 {
 		student.RetrySauce = !engine.joinSauceQueue(world, student)
 	}
