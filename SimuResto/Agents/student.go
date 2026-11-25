@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"image/color"
 	"math"
 	"math/rand/v2"
 	randomness "simuresto/SimuResto/Agents/Randomness"
@@ -10,6 +11,7 @@ import (
 type Companion struct {
 	Role     CompanionRole
 	LeaderID int // Set only for invited students.
+	Color    color.RGBA
 }
 
 type StudentData struct {

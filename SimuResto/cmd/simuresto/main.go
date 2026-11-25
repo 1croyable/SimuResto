@@ -128,8 +128,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Students
 	for _, student := range snapshot.Students {
-		fill := color.RGBA{R: 65, G: 140, B: 220, A: 255}
-
+		var fill color.RGBA
 		switch student.Status {
 		case agents.Finished, agents.Scheduled:
 			continue
@@ -140,11 +139,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			if !student.IsLeaving {
 				continue
 			}
-		}
 
-		if student.Status == agents.Serving ||
-			student.Status == agents.Paying {
+		case agents.Serving, agents.Paying:
 			fill = color.RGBA{R: 225, G: 140, B: 45, A: 255}
+
+		default:
+			fill = student.Student.Companion.Color
+			if fill.A == 0 {
+				fill = color.RGBA{R: 65, G: 140, B: 220, A: 255}
+			}
 		}
 
 		x, y := float32(student.Position.X), float32(student.Position.Y)

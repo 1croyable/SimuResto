@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -19,6 +20,14 @@ const (
 	minCompanionDelay          = 20 * time.Second
 	maxCompanionDelay          = 90 * time.Second
 )
+
+var companionPalette = [...]color.RGBA{
+	{R: 209, G: 55, B: 57, A: 255},  // Red
+	{R: 231, G: 190, B: 25, A: 255}, // Yellow
+	{R: 139, G: 74, B: 184, A: 255}, // Purple
+	{R: 133, G: 85, B: 54, A: 255},  // Brown
+	{R: 99, G: 195, B: 240, A: 255}, // Sky blue
+}
 
 type companionArrival struct {
 	due       time.Duration
@@ -162,6 +171,14 @@ func (e *engine) planCompanions(leaderID int, now, closing, cutoff time.Duration
 func (e *engine) spawnStudent(world *environment.Environment, companion agents.Companion) *agents.StudentState {
 	id := len(world.StudentStates) + 1
 	data := e.generator.Generate(id, world.TimePassed)
+	switch companion.Role {
+	case agents.TogetherLeader, agents.QueueJumpLeader:
+		companion.Color = companionPalette[rand.IntN(len(companionPalette))]
+	case agents.InvitedCompanion:
+		if leader := world.StudentsByID[companion.LeaderID]; leader != nil {
+			companion.Color = leader.Student.Companion.Color
+		}
+	}
 	data.Companion = companion
 	world.StudentStates = append(world.StudentStates, agents.NewStudentState(data))
 	student := &world.StudentStates[len(world.StudentStates)-1]
