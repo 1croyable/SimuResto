@@ -23,8 +23,9 @@ const (
 type companionArrival struct {
 	due       time.Duration
 	expires   time.Duration
-	leaderID  int
+	leaderID  int // Zero while a group is waiting to arrive together
 	remaining int
+	buffered  int
 }
 
 func (e *engine) initArrivals(world *environment.Environment) error {
@@ -63,15 +64,45 @@ func (e *engine) initArrivals(world *environment.Environment) error {
 func (e *engine) spawnArrivals(world *environment.Environment, from, to time.Duration) []*agents.StudentState {
 	counts := e.arrivals.Next(from, to)
 	newcomers := make([]*agents.StudentState, 0, counts[0]+counts[1])
-	closing := [2]time.Duration{world.Settings.Lunch.Close, world.Settings.Dinner.Close}
-	for meal, count := range counts { //meal: 0=lunch 1=dinner
-		for range count {
-			companion := e.nextCompanion(world.TimePassed) // Check if the students is attached to his friend.
-			student := e.spawnStudent(world, companion)
-			if companion.Role == agents.NoCompanion {
-				e.planCompanions(student, world.TimePassed, closing[meal]-world.Settings.StartTime)
+	periods := [2]environment.ArrivalPeriod{world.Settings.Lunch, world.Settings.Dinner}
+	for meal, count := range counts {
+		period := periods[meal]
+		closing := period.Close - world.Settings.StartTime
+		cutoff := closing - period.StopBeforeClose
+		windowEnded := to-world.Settings.StartTime >= cutoff
+		for {
+			if len(e.companionArrivals) > 0 &&
+				e.companionArrivals[0].leaderID == 0 && e.companionArrivals[0].expires == cutoff {
+				group := &e.companionArrivals[0]
+				// Reserve arrival slots until the group can enter together.
+				added := min(count, group.remaining)
+				group.buffered += added
+				group.remaining -= added
+				count -= added
+				if group.remaining > 0 && !windowEnded {
+					break
+				}
+				leader := e.spawnStudent(world, agents.Companion{Role: agents.TogetherLeader})
+				newcomers = append(newcomers, leader)
+				for i := 1; i < group.buffered; i++ {
+					companion := agents.Companion{Role: agents.InvitedCompanion, LeaderID: leader.Student.ID}
+					newcomers = append(newcomers, e.spawnStudent(world, companion))
+				}
+				e.companionArrivals = e.companionArrivals[1:]
+				continue
 			}
-			newcomers = append(newcomers, student)
+			if count == 0 {
+				break
+			}
+			companion := e.nextCompanion(world.TimePassed)
+			if companion.Role == agents.NoCompanion {
+				companion.Role = e.planCompanions(len(world.StudentStates)+1, world.TimePassed, closing, cutoff)
+				if companion.Role == agents.TogetherLeader {
+					continue
+				}
+			}
+			newcomers = append(newcomers, e.spawnStudent(world, companion))
+			count--
 		}
 	}
 	return newcomers
@@ -99,29 +130,33 @@ func (e *engine) nextCompanion(now time.Duration) agents.Companion {
 	return companion
 }
 
-func (e *engine) planCompanions(student *agents.StudentState, now, closing time.Duration) {
+func (e *engine) planCompanions(leaderID int, now, closing, cutoff time.Duration) agents.CompanionRole {
 	if now >= closing || len(e.companionArrivals) >= maxPendingCompanionLeaders ||
 		rand.Float64() >= companionLeaderProbability {
-		return
+		return agents.NoCompanion
 	}
-	group := companionArrival{
-		due:       now,
-		expires:   closing,
-		leaderID:  student.Student.ID,
-		remaining: 1 + rand.IntN(maxCompanions),
-	}
+	companions := 1 + rand.IntN(maxCompanions)
 	if rand.IntN(2) == 0 {
-		student.Student.Companion.Role = agents.TogetherLeader
-	} else {
-		student.Student.Companion.Role = agents.QueueJumpLeader
-		delay := minCompanionDelay + time.Duration(rand.Int64N(int64(maxCompanionDelay-minCompanionDelay)+1))
-		group.due += delay
+		// Give the group consecutive slots, including one for its leader.
+		e.companionArrivals = slices.Insert(e.companionArrivals, 0, companionArrival{
+			expires:   cutoff,
+			remaining: 1 + companions,
+		})
+		return agents.TogetherLeader
+	}
+	delay := minCompanionDelay + time.Duration(rand.Int64N(int64(maxCompanionDelay-minCompanionDelay)+1))
+	group := companionArrival{
+		due:       now + delay,
+		expires:   closing,
+		leaderID:  leaderID,
+		remaining: companions,
 	}
 	index := len(e.companionArrivals)
 	for index > 0 && e.companionArrivals[index-1].due > group.due {
 		index--
 	}
 	e.companionArrivals = slices.Insert(e.companionArrivals, index, group)
+	return agents.QueueJumpLeader
 }
 
 func (e *engine) spawnStudent(world *environment.Environment, companion agents.Companion) *agents.StudentState {
