@@ -199,19 +199,10 @@ func (engine *engine) advanceAssignedCashier(
 		return false
 	}
 
-	if cashier.StudentID == 0 {
-		decision := engine.requestStaffDecision(cashier, agents.StaffObservation{
-			NextStudentID: id,
-			QueueLength:   world.Queue.Len(),
-			Elapsed:       0,
-			Open:          true, // An already assigned customer can finish after closing.
-		})
-		if decision.AcceptedStudentID != id {
-			student.QueueWait += *remainingTime
-			*remainingTime = 0
-			return false
-		}
-		startCounterService(cashier, id)
+	if cashier.StudentID == 0 && !engine.startCounterService(cashier, id, world.Queue.Len()) {
+		student.QueueWait += *remainingTime
+		*remainingTime = 0
+		return false
 	}
 
 	student.Status = agents.Paying
@@ -427,6 +418,11 @@ func (engine *engine) advanceTowardCounter(
 
 	case beforeFood:
 		// Main course has already been chosen; stock was checked before service.
+		if !engine.startCounterService(counter, id, world.Queue.Len()) {
+			student.Status = agents.WaitingForFood
+			*remainingTime = 0
+			return false
+		}
 		student.Position = world.MainRoute[len(world.MainRoute)-1]
 		student.NextWaypoint = tickInfo.mainEnd
 		student.Status = agents.Serving
@@ -435,10 +431,6 @@ func (engine *engine) advanceTowardCounter(
 		student.CashierIndex = cashierIndex
 		student.NextWaypoint = 0 // Waypoint index is now local to the branch.
 		student.Status = agents.Walking
-	}
-
-	if beforeFood {
-		startCounterService(counter, id)
 	}
 
 	return false

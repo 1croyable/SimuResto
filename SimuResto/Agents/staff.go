@@ -1,6 +1,9 @@
 package agents
 
-import "time"
+import (
+	"math/rand/v2"
+	"time"
+)
 
 type StaffData struct {
 	ID          int
@@ -65,7 +68,9 @@ func (staff *StaffState) Decide(obs StaffObservation) StaffDecision {
 
 		studentID = obs.NextStudentID
 		decision.AcceptedStudentID = studentID
-		decision.RemainingTime = staff.Staff.ServiceTime
+		base := staff.Staff.ServiceTime
+		variation := base / 4
+		decision.RemainingTime = randomServiceTime(base-variation, base+variation)
 	}
 
 	elapsed := max(obs.Elapsed, 0)
@@ -78,4 +83,8 @@ func (staff *StaffState) Decide(obs StaffObservation) StaffDecision {
 	}
 
 	return decision
+}
+
+func randomServiceTime(minimum, maximum time.Duration) time.Duration {
+	return minimum + time.Duration(rand.Int64N(int64(maximum-minimum)+1))
 }
