@@ -211,8 +211,7 @@ func (engine *engine) advanceAssignedCashier(
 			*remainingTime = 0
 			return false
 		}
-		cashier.StudentID = id
-		cashier.ServiceTimeLeft = decision.RemainingTime
+		startCounterService(cashier, id)
 	}
 
 	student.Status = agents.Paying
@@ -439,8 +438,7 @@ func (engine *engine) advanceTowardCounter(
 	}
 
 	if beforeFood {
-		counter.StudentID = id
-		counter.ServiceTimeLeft = counter.Staff.ServiceTime
+		startCounterService(counter, id)
 	}
 
 	return false
@@ -534,7 +532,7 @@ func advanceFoodService(world *environment.Environment, student *agents.StudentS
 	recordService(
 		&world.Statistics.MainCounter,
 		student.QueueWait,
-		world.Cook.Staff.ServiceTime,
+		world.Cook.ServiceDuration,
 		1,
 	)
 
@@ -600,7 +598,7 @@ func (engine *engine) advancePayment(
 	recordService(
 		&world.Statistics.CashierCounter,
 		student.QueueWait,
-		cashier.Staff.ServiceTime,
+		cashier.ServiceDuration,
 		0,
 	)
 

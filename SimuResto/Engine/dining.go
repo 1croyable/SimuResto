@@ -58,10 +58,16 @@ func (e *engine) assignNextSeat(world *environment.Environment) {
 }
 
 func (e *engine) preferredSeat(world *environment.Environment, student *agents.StudentState, search DiningSearch) int {
-	if student.Student.Companion.Role == agents.InvitedCompanion {
-		leader := world.StudentsByID[student.Student.Companion.LeaderID]
-		if leader != nil && leader.SeatID > 0 {
-			return e.seatNearLeader(world, e.dining.Seats[leader.SeatID-1], search)
+	if groupID := companionGID(student.Student); groupID != 0 {
+		var groupSeats []DiningSeat
+		for index, id := range world.SeatOwners {
+			if owner := world.StudentsByID[id]; owner != nil && id != student.Student.ID &&
+				companionGID(owner.Student) == groupID {
+				groupSeats = append(groupSeats, e.dining.Seats[index])
+			}
+		}
+		if len(groupSeats) > 0 {
+			return e.seatNearGroup(world, groupSeats, search)
 		}
 	}
 
@@ -94,7 +100,18 @@ func (e *engine) preferredSeat(world *environment.Environment, student *agents.S
 	return best
 }
 
-func (e *engine) seatNearLeader(world *environment.Environment, leaderSeat DiningSeat, search DiningSearch) int {
+func companionGID(student agents.StudentData) int {
+	switch student.Companion.Role {
+	case agents.TogetherLeader, agents.QueueJumpLeader:
+		return student.ID
+	case agents.InvitedCompanion:
+		return student.Companion.LeaderID
+	default:
+		return 0
+	}
+}
+
+func (e *engine) seatNearGroup(world *environment.Environment, groupSeats []DiningSeat, search DiningSearch) int {
 	best, bestPriority, bestWalk := -1, 2, 0
 	bestDistance := 0.0
 	for index, seat := range e.dining.Seats {
@@ -102,14 +119,16 @@ func (e *engine) seatNearLeader(world *environment.Environment, leaderSeat Dinin
 		if world.SeatOwners[index] != 0 || walk < 0 {
 			continue
 		}
-		priority := 0
-		if seat.Table != leaderSeat.Table {
-			priority = 1
-		}
-		distance := math.Hypot(seat.Position.X-leaderSeat.Position.X, seat.Position.Y-leaderSeat.Position.Y)
-		if priority < bestPriority ||
-			priority == bestPriority && (distance < bestDistance || distance == bestDistance && walk < bestWalk) {
-			best, bestPriority, bestDistance, bestWalk = index, priority, distance, walk
+		for _, groupSeat := range groupSeats {
+			priority := 0
+			if seat.Table != groupSeat.Table {
+				priority = 1
+			}
+			distance := math.Hypot(seat.Position.X-groupSeat.Position.X, seat.Position.Y-groupSeat.Position.Y)
+			if priority < bestPriority ||
+				priority == bestPriority && (distance < bestDistance || distance == bestDistance && walk < bestWalk) {
+				best, bestPriority, bestDistance, bestWalk = index, priority, distance, walk
+			}
 		}
 	}
 	return best
