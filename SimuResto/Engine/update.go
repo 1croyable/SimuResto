@@ -199,20 +199,10 @@ func (engine *engine) advanceAssignedCashier(
 		return false
 	}
 
-	if cashier.StudentID == 0 {
-		decision := engine.requestStaffDecision(cashier, agents.StaffObservation{
-			NextStudentID: id,
-			QueueLength:   world.Queue.Len(),
-			Elapsed:       0,
-			Open:          true, // An already assigned customer can finish after closing.
-		})
-		if decision.AcceptedStudentID != id {
-			student.QueueWait += *remainingTime
-			*remainingTime = 0
-			return false
-		}
-		cashier.StudentID = id
-		cashier.ServiceTimeLeft = decision.RemainingTime
+	if cashier.StudentID == 0 && !engine.startCounterService(cashier, id, world.Queue.Len()) {
+		student.QueueWait += *remainingTime
+		*remainingTime = 0
+		return false
 	}
 
 	student.Status = agents.Paying
@@ -428,6 +418,11 @@ func (engine *engine) advanceTowardCounter(
 
 	case beforeFood:
 		// Main course has already been chosen; stock was checked before service.
+		if !engine.startCounterService(counter, id, world.Queue.Len()) {
+			student.Status = agents.WaitingForFood
+			*remainingTime = 0
+			return false
+		}
 		student.Position = world.MainRoute[len(world.MainRoute)-1]
 		student.NextWaypoint = tickInfo.mainEnd
 		student.Status = agents.Serving
@@ -436,11 +431,6 @@ func (engine *engine) advanceTowardCounter(
 		student.CashierIndex = cashierIndex
 		student.NextWaypoint = 0 // Waypoint index is now local to the branch.
 		student.Status = agents.Walking
-	}
-
-	if beforeFood {
-		counter.StudentID = id
-		counter.ServiceTimeLeft = counter.Staff.ServiceTime
 	}
 
 	return false
@@ -534,7 +524,7 @@ func advanceFoodService(world *environment.Environment, student *agents.StudentS
 	recordService(
 		&world.Statistics.MainCounter,
 		student.QueueWait,
-		world.Cook.Staff.ServiceTime,
+		world.Cook.ServiceDuration,
 		1,
 	)
 
@@ -600,18 +590,12 @@ func (engine *engine) advancePayment(
 	recordService(
 		&world.Statistics.CashierCounter,
 		student.QueueWait,
-		cashier.Staff.ServiceTime,
+		cashier.ServiceDuration,
 		0,
 	)
 
 	world.Queue.Remove(id)
-	dining := engine.requestStudentDecision(student, agents.StudentObservation{
-		DecisionType:  agents.DecideDiningTime,
-		MinDiningTime: world.Settings.MinDiningTime,
-		MaxDiningTime: world.Settings.MaxDiningTime,
-	})
-	student.DiningTime = dining.DiningTime
-	student.RemainingDining = dining.DiningTime
+	engine.prepareDining(world, student)
 	if student.Student.WantsSauce && world.Sauce.Portions > 0 {
 		student.RetrySauce = !engine.joinSauceQueue(world, student)
 	}

@@ -48,3 +48,18 @@ func (e *engine) requestStaffDecision(staff *agents.StaffState, observation agen
 
 	return agent.ask(observation)
 }
+
+func (e *engine) startCounterService(staff *agents.StaffState, studentID, queueLength int) bool {
+	decision := e.requestStaffDecision(staff, agents.StaffObservation{
+		NextStudentID: studentID,
+		QueueLength:   queueLength,
+		Open:          true, // An already assigned customer can be served after closing.
+	})
+	if decision.AcceptedStudentID != studentID {
+		return false
+	}
+	staff.StudentID = studentID
+	staff.ServiceDuration = decision.RemainingTime
+	staff.ServiceTimeLeft = decision.RemainingTime
+	return true
+}

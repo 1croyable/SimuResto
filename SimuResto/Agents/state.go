@@ -46,4 +46,5 @@ type StaffState struct {
 	Staff           StaffData
 	Position        Point
 	ServiceTimeLeft time.Duration
+	ServiceDuration time.Duration
 }

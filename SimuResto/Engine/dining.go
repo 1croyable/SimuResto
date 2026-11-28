@@ -1,11 +1,33 @@
 package engine
 
 import (
+	"math"
 	"slices"
 
 	agents "simuresto/SimuResto/Agents"
 	environment "simuresto/SimuResto/Environment"
 )
+
+func (e *engine) prepareDining(world *environment.Environment, student *agents.StudentState) {
+	durationOwner := student
+	if student.Student.Companion.Role == agents.InvitedCompanion {
+		if leader := world.StudentsByID[student.Student.Companion.LeaderID]; leader != nil {
+			durationOwner = leader
+		}
+	}
+
+	// The first group member to pay can initialize the leader's planned duration.
+	if durationOwner.DiningTime == 0 {
+		decision := e.requestStudentDecision(durationOwner, agents.StudentObservation{
+			DecisionType:  agents.DecideDiningTime,
+			MinDiningTime: world.Settings.MinDiningTime,
+			MaxDiningTime: world.Settings.MaxDiningTime,
+		})
+		durationOwner.DiningTime = decision.DiningTime
+	}
+	student.DiningTime = durationOwner.DiningTime
+	student.RemainingDining = student.DiningTime
+}
 
 func (e *engine) requestSeat(world *environment.Environment, student *agents.StudentState, from int, approach []agents.Point) {
 	student.Status = agents.Walking
@@ -25,7 +47,7 @@ func (e *engine) assignNextSeat(world *environment.Environment) {
 	}
 	student := world.StudentsByID[id]
 	search := e.dining.Search(student.DiningNode)
-	index := e.preferredSeat(world, search)
+	index := e.preferredSeat(world, student, search)
 	if index < 0 {
 		return
 	}
@@ -35,7 +57,20 @@ func (e *engine) assignNextSeat(world *environment.Environment) {
 	e.routeToSeat(student, search)
 }
 
-func (e *engine) preferredSeat(world *environment.Environment, search DiningSearch) int {
+func (e *engine) preferredSeat(world *environment.Environment, student *agents.StudentState, search DiningSearch) int {
+	if groupID := companionGID(student.Student); groupID != 0 {
+		var groupSeats []DiningSeat
+		for index, id := range world.SeatOwners {
+			if owner := world.StudentsByID[id]; owner != nil && id != student.Student.ID &&
+				companionGID(owner.Student) == groupID {
+				groupSeats = append(groupSeats, e.dining.Seats[index])
+			}
+		}
+		if len(groupSeats) > 0 {
+			return e.seatNearGroup(world, groupSeats, search)
+		}
+	}
+
 	occupiedTables := make(map[int]bool)
 	for index, owner := range world.SeatOwners {
 		if owner != 0 {
@@ -60,6 +95,40 @@ func (e *engine) preferredSeat(world *environment.Environment, search DiningSear
 		}
 		if priority < bestPriority || priority == bestPriority && distance < bestDistance {
 			best, bestPriority, bestDistance = index, priority, distance
+		}
+	}
+	return best
+}
+
+func companionGID(student agents.StudentData) int {
+	switch student.Companion.Role {
+	case agents.TogetherLeader, agents.QueueJumpLeader:
+		return student.ID
+	case agents.InvitedCompanion:
+		return student.Companion.LeaderID
+	default:
+		return 0
+	}
+}
+
+func (e *engine) seatNearGroup(world *environment.Environment, groupSeats []DiningSeat, search DiningSearch) int {
+	best, bestPriority, bestWalk := -1, 2, 0
+	bestDistance := 0.0
+	for index, seat := range e.dining.Seats {
+		walk := search.Distance[seat.Node]
+		if world.SeatOwners[index] != 0 || walk < 0 {
+			continue
+		}
+		for _, groupSeat := range groupSeats {
+			priority := 0
+			if seat.Table != groupSeat.Table {
+				priority = 1
+			}
+			distance := math.Hypot(seat.Position.X-groupSeat.Position.X, seat.Position.Y-groupSeat.Position.Y)
+			if priority < bestPriority ||
+				priority == bestPriority && (distance < bestDistance || distance == bestDistance && walk < bestWalk) {
+				best, bestPriority, bestDistance, bestWalk = index, priority, distance, walk
+			}
 		}
 	}
 	return best

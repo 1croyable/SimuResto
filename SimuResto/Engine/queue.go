@@ -21,15 +21,49 @@ func (e *engine) admitStudents(world *environment.Environment, arrivals []*agent
 		return
 	}
 
-	for _, student := range arrivals {
+	for len(arrivals) > 0 {
+		student := arrivals[0]
+		arrivals = arrivals[1:]
 		if world.Queue.Len() >= world.Queue.Capacity() {
 			panic("arrival queue exceeds planned capacity")
+		}
+
+		if student.Student.Companion.Role == agents.TogetherLeader {
+			companionCount := 0
+			for _, next := range arrivals {
+				if next.Student.Companion.LeaderID != student.Student.ID {
+					break
+				}
+				companionCount++
+			}
+			enqueueTogetherAtTail(world, student, arrivals[:companionCount])
+			arrivals = arrivals[companionCount:]
+			continue
 		}
 
 		if e.startCompanionWalk(world, student) {
 			continue
 		}
 		enqueueAtTail(world, student)
+	}
+}
+
+func enqueueTogetherAtTail(world *environment.Environment, leader *agents.StudentState, companions []*agents.StudentState) {
+	if world.Queue.Len()+1+len(companions) > world.Queue.Capacity() {
+		panic("arrival queue exceeds planned capacity")
+	}
+	spacing := world.Settings.QueueSpacing
+	// Place the last companion at the entrance when the queue leaves enough room.
+	position := float64(len(companions)) * spacing
+	ids := world.Queue.IDs()
+	if len(ids) > 0 {
+		tail := world.StudentsByID[ids[len(ids)-1]]
+		position = min(position, tail.PositionAlongRoute-spacing)
+	}
+	enqueueAtPosition(world, leader, position)
+	for _, companion := range companions {
+		position -= spacing
+		enqueueAtPosition(world, companion, position)
 	}
 }
 
@@ -42,10 +76,12 @@ func queueTailPosition(world *environment.Environment, ids []int) float64 {
 }
 
 func enqueueAtTail(world *environment.Environment, student *agents.StudentState) {
-	position := queueTailPosition(world, world.Queue.IDs())
+	enqueueAtPosition(world, student, queueTailPosition(world, world.Queue.IDs()))
+}
+
+func enqueueAtPosition(world *environment.Environment, student *agents.StudentState, position float64) {
 	student.PositionAlongRoute = position
-	student.Position = agents.Point{X: world.Starter1Route[0].X - position, Y: world.Starter1Route[0].Y}
-	student.NextWaypoint = 0
+	student.Position, student.NextWaypoint = queueJumpRoutePoint(world, position)
 	student.Status = agents.Walking
 	student.Target = agents.TargetStarter1
 	world.Queue.Enqueue(student.Student.ID)
